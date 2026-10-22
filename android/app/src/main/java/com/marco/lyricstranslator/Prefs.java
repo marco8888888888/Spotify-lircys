@@ -66,12 +66,13 @@ final class Prefs {
         sp(c).edit().putBoolean("inline", v).apply();
     }
 
-    static int overlayY(Context c) {
-        return sp(c).getInt("overlayY", 200);
+    /** Abstand des Lyrics-Fensters vom unteren Bildschirmrand in Pixeln. */
+    static int overlayBottom(Context c, int def) {
+        return sp(c).getInt("overlayBottom", def);
     }
 
-    static void setOverlayY(Context c, int y) {
-        sp(c).edit().putInt("overlayY", y).apply();
+    static void setOverlayBottom(Context c, int y) {
+        sp(c).edit().putInt("overlayBottom", y).apply();
     }
 
     static String langName(String code) {

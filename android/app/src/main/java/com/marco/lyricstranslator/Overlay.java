@@ -3,10 +3,12 @@ package com.marco.lyricstranslator;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -17,7 +19,9 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.WindowManager;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -26,8 +30,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Lyrics über Spotify. Zwei Darstellungen:
- * - Karte: schwebendes Fenster mit mitlaufenden Lyrics (oder kleiner Knopf, wenn minimiert)
+ * Lyrics direkt über Spotify. Zwei Darstellungen:
+ * - Karte im Stil von Spotifys Lyrics-Karte (Farbe vom Cover), oder kleiner Knopf, wenn minimiert
  * - Inline: Übersetzung direkt unter den Zeilen von Spotifys eigener Lyrics-Ansicht (braucht Bedienungshilfe)
  * Alle Methoden laufen auf dem UI-Thread.
  */
@@ -56,9 +60,10 @@ final class Overlay implements NowPlaying.Listener {
     private final Handler main = new Handler(Looper.getMainLooper());
 
     private FrameLayout cardRoot, inlineLayer;
-    private LinearLayout card;
-    private GradientDrawable cardBg;
-    private TextView titleView, subView, bubble;
+    private GradientDrawable cardBg, bubbleBg;
+    private ImageView cover;
+    private TextView titleView, artistView, subView;
+    private View bubble;
     private ScrollView scroll;
     private LinearLayout linesBox;
     private WindowManager.LayoutParams cardParams, bubbleParams, inlineParams;
@@ -146,17 +151,27 @@ final class Overlay implements NowPlaying.Listener {
         ensureViews();
         boolean show = shouldShow();
         boolean inline = show && inlineActive();
-        setAttached(inlineLayer, inlineParams, inline);
-        setAttached(cardRoot, cardParams, show && !inline && !minimized);
-        setAttached(bubble, bubbleParams, show && !inline && minimized);
+        setAttached(inlineLayer, inlineParams, inline, false);
+        setAttached(cardRoot, cardParams, show && !inline && !minimized, true);
+        setAttached(bubble, bubbleParams, show && !inline && minimized, true);
         if (inline) renderInline();
         if (show && !inline && !minimized) renderCard();
+        if (bubble.isAttachedToWindow()) bubbleBg.setColors(gradient(now.color));
     }
 
-    private void setAttached(View v, WindowManager.LayoutParams p, boolean attach) {
+    private void setAttached(View v, WindowManager.LayoutParams p, boolean attach, boolean animate) {
         try {
-            if (attach && !v.isAttachedToWindow() && v.getParent() == null) wm.addView(v, p);
-            else if (!attach && v.isAttachedToWindow()) wm.removeView(v);
+            if (attach && !v.isAttachedToWindow() && v.getParent() == null) {
+                wm.addView(v, p);
+                if (animate) {
+                    v.setAlpha(0f);
+                    v.setTranslationY(dp(16));
+                    v.animate().alpha(1f).translationY(0).setDuration(260).setInterpolator(new DecelerateInterpolator()).start();
+                }
+            } else if (!attach && v.isAttachedToWindow()) {
+                v.animate().cancel();
+                wm.removeView(v);
+            }
         } catch (RuntimeException e) {
             // z. B. wenn die Overlay-Berechtigung gerade entzogen wurde
         }
@@ -164,15 +179,33 @@ final class Overlay implements NowPlaying.Listener {
 
     // ---------- Karte ----------
 
+    /** Verlauf wie bei Spotifys Lyrics-Karte: Cover-Farbe oben, dunkler nach unten. */
+    private static int[] gradient(int color) {
+        return new int[] {blend(color, 0xFFFFFFFF, 0.06f), blend(color, 0xFF000000, 0.38f)};
+    }
+
     private void renderCard() {
-        cardBg.setColor(blend(now.color, 0xFF121212, 0.35f) & 0x00FFFFFF | 0xF2000000);
-        titleView.setText(now.title == null ? "Lyrics Translator" : now.title + " – " + now.artist);
+        cardBg.setColors(gradient(now.color));
+        if (now.art != null) cover.setImageBitmap(now.art);
+        else cover.setImageResource(R.drawable.ic_translate);
+        titleView.setText(now.title == null ? "Lyrics Translator" : now.title);
+        artistView.setText(now.artist == null ? "" : now.artist);
         subView.setText(now.subline());
+        subView.setVisibility(subView.getText().length() == 0 ? View.GONE : View.VISIBLE);
         String key = now.trackKey + "|" + (now.lyrics != null) + "|" + (now.translations != null) + "|" + Prefs.mode(ctx);
         if (!key.equals(renderedKey)) {
             renderedKey = key;
-            LyricsRenderer.render(ctx, linesBox, now, 17, 14, null);
+            LyricsRenderer.render(ctx, linesBox, now, 19, 15, null);
+            if (now.lyrics == null && now.status != null) {
+                TextView msg = new TextView(ctx);
+                msg.setText(now.status);
+                msg.setTextSize(15);
+                msg.setTextColor(0xB3FFFFFF);
+                msg.setPadding(0, dp(18), 0, 0);
+                linesBox.addView(msg);
+            }
             activeIndex = -2;
+            scroll.scrollTo(0, 0);
         }
         main.removeCallbacks(tick);
         main.post(tick);
@@ -184,27 +217,26 @@ final class Overlay implements NowPlaying.Listener {
         inlineLayer.removeAllViews();
         int[] origin = new int[2];
         inlineLayer.getLocationOnScreen(origin);
-        int bg = blend(now.color, 0xFF000000, 0.25f) & 0x00FFFFFF | 0xE6000000;
         for (SpotifyLine l : spotifyLines) {
             String trans = now.translationAt(l.index);
             if (trans.isEmpty()) continue;
             TextView t = new TextView(ctx);
             t.setText(trans);
-            t.setTextSize(14);
-            t.setTextColor(LyricsRenderer.GREEN);
-            t.setTypeface(Typeface.DEFAULT_BOLD);
+            t.setTextSize(15);
+            t.setTextColor(LyricsRenderer.TRANSLATION);
+            t.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
             t.setMaxLines(2);
             t.setEllipsize(TextUtils.TruncateAt.END);
             GradientDrawable d = new GradientDrawable();
-            d.setColor(bg);
-            d.setCornerRadius(dp(6));
+            d.setColor(blend(now.color, 0xFF000000, 0.55f) & 0x00FFFFFF | 0xE6000000);
+            d.setCornerRadius(dp(8));
             t.setBackground(d);
-            t.setPadding(dp(6), dp(1), dp(6), dp(2));
+            t.setPadding(dp(8), dp(2), dp(8), dp(3));
+            t.setElevation(dp(2));
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-            lp.leftMargin = l.bounds.left - origin[0] - dp(6);
+            lp.leftMargin = l.bounds.left - origin[0] - dp(8);
             lp.topMargin = l.bounds.bottom - origin[1] - dp(4);
-            lp.rightMargin = 0;
-            t.setMaxWidth(Math.max(dp(120), l.bounds.width() + dp(12)));
+            t.setMaxWidth(Math.max(dp(120), l.bounds.width() + dp(16)));
             inlineLayer.addView(t, lp);
         }
     }
@@ -232,82 +264,116 @@ final class Overlay implements NowPlaying.Listener {
         return p;
     }
 
-    private TextView button(String label) {
-        TextView b = new TextView(ctx);
-        b.setText(label);
-        b.setTextColor(0xFFB3B3B3);
-        b.setTextSize(18);
-        b.setPadding(dp(10), dp(2), dp(4), dp(2));
+    private ImageView iconButton(int icon, String description) {
+        ImageView b = new ImageView(ctx);
+        b.setImageResource(icon);
+        b.setImageTintList(ColorStateList.valueOf(0xD9FFFFFF));
+        b.setContentDescription(description);
+        b.setPadding(dp(7), dp(7), dp(7), dp(7));
+        GradientDrawable mask = new GradientDrawable();
+        mask.setShape(GradientDrawable.OVAL);
+        mask.setColor(0xFFFFFFFF);
+        b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x40FFFFFF), null, mask));
         return b;
     }
 
     private void ensureViews() {
         if (cardRoot != null) return;
-        int y = Prefs.overlayY(ctx);
+        int y = Prefs.overlayBottom(ctx, dp(140));
 
+        // Außen etwas Rand, damit der Schatten der Karte sichtbar bleibt.
         cardRoot = new FrameLayout(ctx);
-        cardRoot.setPadding(dp(8), 0, dp(8), 0);
-        card = new LinearLayout(ctx);
+        cardRoot.setPadding(dp(10), dp(6), dp(10), dp(10));
+        cardRoot.setClipToPadding(false);
+        LinearLayout card = new LinearLayout(ctx);
         card.setOrientation(LinearLayout.VERTICAL);
-        cardBg = new GradientDrawable();
-        cardBg.setColor(0xF2121212);
-        cardBg.setCornerRadius(dp(16));
+        cardBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, gradient(NowPlaying.DEFAULT_COLOR));
+        cardBg.setCornerRadius(dp(14));
         card.setBackground(cardBg);
-        card.setPadding(dp(14), dp(10), dp(10), dp(10));
+        card.setElevation(dp(8));
+        card.setPadding(dp(14), dp(12), dp(8), dp(10));
         cardRoot.addView(card);
 
+        // Kopf: Cover, Titel/Künstler, Knöpfe
         LinearLayout header = new LinearLayout(ctx);
         header.setGravity(Gravity.CENTER_VERTICAL);
+        cover = new ImageView(ctx);
+        cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        GradientDrawable coverShape = new GradientDrawable();
+        coverShape.setColor(0x33FFFFFF);
+        coverShape.setCornerRadius(dp(6));
+        cover.setBackground(coverShape);
+        cover.setClipToOutline(true);
+        header.addView(cover, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        LinearLayout names = new LinearLayout(ctx);
+        names.setOrientation(LinearLayout.VERTICAL);
+        names.setPadding(dp(10), 0, dp(4), 0);
         titleView = new TextView(ctx);
         titleView.setTextColor(0xFFFFFFFF);
-        titleView.setTypeface(Typeface.DEFAULT_BOLD);
-        titleView.setTextSize(13);
+        titleView.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        titleView.setTextSize(14);
         titleView.setSingleLine(true);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
-        header.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        TextView full = button("⛶");
-        TextView settings = button("⚙");
-        TextView minimize = button("—");
-        TextView close = button("✕");
-        header.addView(full);
-        header.addView(settings);
-        header.addView(minimize);
-        header.addView(close);
+        artistView = new TextView(ctx);
+        artistView.setTextColor(0xB3FFFFFF);
+        artistView.setTextSize(12);
+        artistView.setSingleLine(true);
+        artistView.setEllipsize(TextUtils.TruncateAt.END);
+        names.addView(titleView);
+        names.addView(artistView);
+        header.addView(names, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        int size = dp(34);
+        ImageView full = iconButton(R.drawable.ic_fullscreen, "Vollbild");
+        ImageView settings = iconButton(R.drawable.ic_tune, "Einstellungen");
+        ImageView minimize = iconButton(R.drawable.ic_minimize, "Minimieren");
+        ImageView close = iconButton(R.drawable.ic_close, "Schließen");
+        for (View v : new View[] {full, settings, minimize, close}) header.addView(v, new LinearLayout.LayoutParams(size, size));
         card.addView(header);
 
-        subView = new TextView(ctx);
-        subView.setTextColor(0xFFB3B3B3);
-        subView.setTextSize(11);
-        subView.setSingleLine(true);
-        subView.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(subView);
-
+        // Lyrics mit weichen Kanten oben/unten
         scroll = new ScrollView(ctx);
         scroll.setVerticalScrollBarEnabled(false);
+        scroll.setVerticalFadingEdgeEnabled(true);
+        scroll.setFadingEdgeLength(dp(28));
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         linesBox = new LinearLayout(ctx);
         linesBox.setOrientation(LinearLayout.VERTICAL);
-        linesBox.setPadding(0, dp(6), 0, dp(80));
+        linesBox.setPadding(0, dp(14), dp(6), dp(90));
         scroll.addView(linesBox);
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(170));
-        sp.topMargin = dp(4);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(196));
+        sp.topMargin = dp(2);
         card.addView(scroll, sp);
 
-        cardParams = params(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT, Gravity.TOP, 0);
+        subView = new TextView(ctx);
+        subView.setTextColor(0x8CFFFFFF);
+        subView.setTextSize(10.5f);
+        subView.setSingleLine(true);
+        subView.setEllipsize(TextUtils.TruncateAt.END);
+        subView.setPadding(0, dp(4), dp(6), 0);
+        card.addView(subView);
+
+        cardParams = params(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM, 0);
         cardParams.y = y;
 
-        bubble = new TextView(ctx);
-        bubble.setText("文A");
-        bubble.setTextColor(0xFF000000);
-        bubble.setTypeface(Typeface.DEFAULT_BOLD);
-        bubble.setTextSize(15);
-        bubble.setGravity(Gravity.CENTER);
-        GradientDrawable circle = new GradientDrawable();
-        circle.setShape(GradientDrawable.OVAL);
-        circle.setColor(LyricsRenderer.GREEN);
-        bubble.setBackground(circle);
-        bubble.setElevation(dp(6));
-        bubbleParams = params(dp(52), dp(52), Gravity.TOP | Gravity.END, 0);
-        bubbleParams.x = dp(12);
+        // Minimiert: runder Knopf in der Cover-Farbe
+        ImageView b = new ImageView(ctx);
+        b.setImageResource(R.drawable.ic_translate);
+        b.setImageTintList(ColorStateList.valueOf(0xFFFFFFFF));
+        b.setPadding(dp(14), dp(14), dp(14), dp(14));
+        bubbleBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, gradient(NowPlaying.DEFAULT_COLOR));
+        bubbleBg.setShape(GradientDrawable.OVAL);
+        bubbleBg.setStroke(dp(2), LyricsRenderer.GREEN);
+        b.setBackground(bubbleBg);
+        b.setElevation(dp(6));
+        FrameLayout bubbleRoot = new FrameLayout(ctx);
+        bubbleRoot.setPadding(dp(8), dp(8), dp(8), dp(8));
+        bubbleRoot.setClipToPadding(false);
+        bubbleRoot.addView(b, new FrameLayout.LayoutParams(dp(54), dp(54)));
+        bubble = bubbleRoot;
+        bubbleParams = params(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END, 0);
+        bubbleParams.x = dp(6);
         bubbleParams.y = y;
 
         // Volle Bildschirmebene, die keine Berührungen abfängt – Spotify bleibt normal bedienbar.
@@ -329,8 +395,8 @@ final class Overlay implements NowPlaying.Listener {
             update();
         });
         draggable(header, cardRoot, cardParams, null);
-        draggable(titleView, cardRoot, cardParams, null);
-        draggable(bubble, bubble, bubbleParams, () -> {
+        draggable(names, cardRoot, cardParams, null);
+        draggable(b, bubble, bubbleParams, () -> {
             minimized = false;
             renderedKey = null;
             update();
@@ -370,14 +436,15 @@ final class Overlay implements NowPlaying.Listener {
                     float dy = e.getRawY() - startRaw;
                     if (Math.abs(dy) > slop) dragging = true;
                     if (dragging && window.isAttachedToWindow()) {
-                        p.y = Math.max(0, startY + Math.round(dy));
+                        // Fenster hängt unten: nach unten ziehen = Abstand zum unteren Rand kleiner.
+                        p.y = Math.max(0, startY - Math.round(dy));
                         wm.updateViewLayout(window, p);
                     }
                     return true;
                 case MotionEvent.ACTION_UP:
                     if (dragging) {
                         cardParams.y = bubbleParams.y = p.y;
-                        Prefs.setOverlayY(ctx, p.y);
+                        Prefs.setOverlayBottom(ctx, p.y);
                     } else if (onTap != null) {
                         onTap.run();
                     }

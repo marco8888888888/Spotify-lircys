@@ -86,10 +86,11 @@ zurückspielt.
 
 ### Bedienung
 
-- Fenster am Titel **nach oben/unten ziehen**
-- **⛶** öffnet den Vollbild-Player, **⚙** die Einstellungen
-- **—** macht es zu einem kleinen grünen Knopf, Tippen darauf öffnet es wieder
+- Das Lyrics-Fenster sitzt unten über Spotifys Player-Leiste, in der Farbe vom Album-Cover
+- Am Titel **nach oben/unten ziehen**, um es zu verschieben
+- **⌄** macht es zu einem kleinen runden Knopf, Tippen darauf öffnet es wieder
 - **✕** blendet es bis zum nächsten Song aus
+- **Vollbild-Knopf** öffnet den großen Player, **Regler-Knopf** die Einstellungen
 
 ### Selbst bauen (optional)
 
