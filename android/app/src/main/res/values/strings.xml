@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Lyrics Translator</string>
+    <string name="accessibility_label">Lyrics Translator – in Spotify anzeigen</string>
+    <string name="accessibility_description">Erkennt, ob Spotify gerade geöffnet ist, damit das Lyrics-Fenster nur in Spotify erscheint, und findet die Zeilen von Spotifys Lyrics-Ansicht, um die Übersetzung direkt darunter einzublenden. Es werden nur Texte aus Spotify gelesen und nichts verändert oder gesendet.</string>
 </resources>

@@ -10,6 +10,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SOURCE="$HERE/$NAME"
 
 SPA=""
+FOLDER=""
 for c in \
   "${SPOTIFY_APPS_DIR:-}/xpui.spa" \
   "/Applications/Spotify.app/Contents/Resources/Apps/xpui.spa" \
@@ -21,7 +22,29 @@ for c in \
   "$HOME/.local/share/flatpak/app/com.spotify.Client/x86_64/stable/active/files/extra/share/spotify/Apps/xpui.spa" \
   "/var/lib/flatpak/app/com.spotify.Client/x86_64/stable/active/files/extra/share/spotify/Apps/xpui.spa"; do
   if [ -f "$c" ]; then SPA="$c"; break; fi
+  # Neuere Versionen legen die Oberfläche entpackt ab: Apps/xpui/index.html
+  if [ -f "${c%.spa}/index.html" ]; then FOLDER="${c%.spa}"; break; fi
 done
+if [ -z "$SPA" ] && [ -n "$FOLDER" ]; then
+  INDEX="$FOLDER/index.html"
+  [ -w "$INDEX" ] || { echo "Keine Schreibrechte für $INDEX – starte das Script mit sudo." >&2; exit 1; }
+  echo "Spotify gefunden: $FOLDER"
+  pkill -x Spotify 2>/dev/null || pkill -x spotify 2>/dev/null || true
+  sleep 1
+  if [ "${1:-}" = "--uninstall" ]; then
+    [ -f "$INDEX.bak" ] && mv -f "$INDEX.bak" "$INDEX"
+    rm -f "$FOLDER/$NAME"
+    echo "Lyrics Translator wurde entfernt."
+    exit 0
+  fi
+  [ -f "$SOURCE" ] || { echo "$NAME fehlt neben diesem Script." >&2; exit 1; }
+  grep -qF "$MARKER" "$INDEX" || { cp -f "$INDEX" "$INDEX.bak"; perl -0pi -e "s|(<head[^>]*>)|\$1$MARKER<script src=\"$NAME\"></script>|" "$INDEX"; }
+  cp -f "$SOURCE" "$FOLDER/$NAME"
+  echo
+  echo "Fertig! Lyrics Translator ist in Spotify eingebaut."
+  echo "Öffne in Spotify die Lyrics – die Übersetzung steht unter jeder Zeile."
+  exit 0
+fi
 if [ -z "$SPA" ]; then
   echo "Spotify wurde nicht gefunden. Installiere Spotify von https://www.spotify.com/download" >&2
   echo "oder gib den Apps-Ordner an: SPOTIFY_APPS_DIR=/pfad/zu/Spotify/Apps bash $0" >&2
