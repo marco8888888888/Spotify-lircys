@@ -1,84 +1,113 @@
 # Spotify Lyrics Translator
 
-Lyrics für (fast) jeden Song – synchron zur Musik und übersetzt in über 100 Sprachen.
+Lyrics für (fast) jeden Song – direkt in Spotify, synchron zur Musik und übersetzt in über 100 Sprachen.
+**Ohne Spicetify**, ohne Zusatzprogramme.
 
-| | Computer | Handy (Android & iPhone) |
+| Gerät | Wie es funktioniert | Ordner |
 |---|---|---|
-| Was | Erweiterung direkt in der Spotify-Desktop-App ([Spicetify](https://spicetify.app)) | Web-App, installierbar auf dem Startbildschirm |
-| Datei | [`spicetify/lyrics-translator.js`](spicetify/lyrics-translator.js) | [`docs/`](docs) |
-| Song-Erkennung | automatisch | automatisch über Spotify-Login (oder manuelle Suche) |
-| Mitlaufende Zeilen | ✅ (Klick auf Zeile = springen) | ✅ |
-
-> Warum zwei Teile? Die offizielle Spotify-App auf dem Handy erlaubt keine Plugins. Deshalb gibt es fürs Handy
-> eine eigene App, die erkennt, was gerade in Spotify läuft, und die Lyrics dazu anzeigt.
+| **Computer** (Windows, Mac, Linux) | Ein Installer baut den Mod direkt in die Spotify-App ein. Neben Spotifys Lyrics-Knopf erscheint ein Übersetzen-Knopf. | [`desktop/`](desktop) |
+| **Android** | Eigene App, die die Lyrics als Fenster **über Spotify** einblendet, mitlaufend zum Song. | [`android/`](android) |
+| **iPhone** | Web-App zum Installieren auf dem Home-Bildschirm. Läuft neben Spotify, weil iOS keine Fenster über anderen Apps erlaubt. | [`docs/`](docs) |
 
 ## Woher kommen die Lyrics?
 
 Damit es für möglichst jeden Song Lyrics gibt, werden mehrere Quellen nacheinander gefragt:
 
-1. **Spotify** selbst (nur am Computer)
-2. **[LRCLIB](https://lrclib.net)** – große, freie Datenbank mit synchronisierten Lyrics
-3. **[lyrics.ovh](https://lyrics.ovh)** – als letzte Rückfallebene (nur Text, nicht synchron)
+1. **[LRCLIB](https://lrclib.net)** – große, freie Datenbank mit synchronisierten Lyrics (mitlaufende Zeilen)
+2. **[lyrics.ovh](https://lyrics.ovh)** – Rückfallebene (nur Text, nicht synchron)
 
-Synchronisierte Lyrics werden bevorzugt. Wenn ein Song in keiner Quelle steht (z. B. sehr neue oder unbekannte
-Titel), wird „keine Lyrics gefunden“ angezeigt – 100 % aller Songs kann leider keine Datenbank abdecken.
+Synchronisierte Lyrics werden bevorzugt. Bei sehr neuen oder unbekannten Songs kann es trotzdem vorkommen,
+dass keine Quelle Lyrics hat – dann steht da „keine Lyrics gefunden“.
 
 Übersetzt wird mit Google Translate. Die Originalsprache wird automatisch erkannt.
+Anzeige wählbar: **Original + Übersetzung**, **nur Übersetzung** oder **nur Original**.
 
 ---
 
-## Installation am Computer (Windows / macOS / Linux)
+## 💻 Computer: Spotify modden
 
-1. **Spicetify installieren** (Anleitung: <https://spicetify.app/docs/getting-started>)
-   - Windows (PowerShell):
-     `iwr -useb https://raw.githubusercontent.com/spicetify/cli/main/install.ps1 | iex`
-   - macOS / Linux:
-     `curl -fsSL https://raw.githubusercontent.com/spicetify/cli/main/install.sh | sh`
-2. **Erweiterung kopieren:** `spicetify/lyrics-translator.js` in den Extensions-Ordner legen.
-   Den Ordner findest du mit `spicetify config-dir` → Unterordner `Extensions`.
-3. **Aktivieren:**
-   ```sh
-   spicetify config extensions lyrics-translator.js
-   spicetify apply
-   ```
-4. In Spotify oben auf das **Übersetzen-Symbol** (文A) klicken → das Lyrics-Fenster öffnet sich.
-   Dort Zielsprache und Anzeige (Original + Übersetzung / nur Übersetzung / nur Original) wählen.
+Voraussetzung: die normale Spotify-App von <https://www.spotify.com/download>
+(unter Windows **nicht** die Microsoft-Store-Version – die lässt sich nicht verändern).
 
-Nach einem Spotify-Update ggf. erneut `spicetify apply` ausführen.
+### Windows
+
+1. Dieses Repo herunterladen: grüner Knopf **Code → Download ZIP**, entpacken.
+2. Im Ordner `desktop` doppelt auf **`install-windows.bat`** klicken.
+3. Spotify startet neu. Unten rechts neben dem Lyrics-Knopf ist jetzt der **Übersetzen-Knopf (文A)**.
+   Alternativ: **Strg + Umschalt + L**.
+
+Entfernen: `uninstall-windows.bat` doppelklicken.
+
+### Mac / Linux
+
+```sh
+cd desktop
+bash install-mac-linux.sh            # installieren
+bash install-mac-linux.sh --uninstall # entfernen
+```
+
+Unter Linux ggf. mit `sudo` starten (Spotify liegt dort oft in `/usr/share/spotify` oder `/opt/spotify`).
+Die Snap-Version von Spotify lässt sich nicht verändern; Flatpak und die normale Version funktionieren.
+
+> **Nach einem Spotify-Update** ist der Mod wieder weg (Spotify überschreibt seine Dateien).
+> Einfach den Installer nochmal starten.
+
+**Was der Installer macht:** Er öffnet Spotifys App-Paket `Apps/xpui.spa`, legt `lyrics-translator.js`
+hinein und lädt es in `index.html`. Vorher wird eine Sicherung `xpui.spa.bak` angelegt, die der Uninstaller
+zurückspielt.
 
 ---
 
-## Installation am Handy
+## 📱 Android: Lyrics über Spotify
 
-### 1. Web-App veröffentlichen (einmalig)
+### Installieren
 
-Auf GitHub im Repo: **Settings → Pages → Source: „Deploy from a branch“ → Branch `main`, Ordner `/docs`**.
-Die App ist danach erreichbar unter `https://<dein-github-name>.github.io/<repo-name>/`.
+1. Auf dem Handy die neueste **`LyricsTranslator.apk`** herunterladen:
+   **Releases → „Lyrics Translator (Android)“** hier im Repo.
+   (Die APK wird bei jeder Änderung automatisch von GitHub gebaut.)
+2. APK öffnen → „Installation aus unbekannten Quellen“ für den Browser erlauben → **Installieren**.
+3. App **Lyrics Translator** öffnen und die zwei Berechtigungen erteilen:
+   - **Benachrichtigungszugriff** – nur darüber erlaubt Android, zu sehen, welcher Song in Spotify läuft und an welcher Stelle.
+   - **Über anderen Apps einblenden** – damit das Lyrics-Fenster über Spotify erscheinen kann.
 
-### 2. Auf dem Handy installieren
+   Ist der Schalter für den Benachrichtigungszugriff grau („Eingeschränkte Einstellung“, ab Android 13):
+   In der App auf **„App-Info öffnen“** tippen → oben rechts **⋮** → **„Eingeschränkte Einstellungen zulassen“** → nochmal versuchen.
+4. Sprache und Anzeige wählen, **Spotify öffnen**, Song abspielen – fertig.
 
-- **Android (Chrome):** Seite öffnen → Menü ⋮ → **„App installieren“** / „Zum Startbildschirm“
-- **iPhone (Safari):** Seite öffnen → Teilen-Symbol → **„Zum Home-Bildschirm“**
+### Bedienung
 
-### 3. Mit Spotify verbinden (damit der laufende Song automatisch erkannt wird)
+- Fenster am Titel **nach oben/unten ziehen**
+- **—** macht es zu einem kleinen grünen Knopf, Tippen darauf öffnet es wieder
+- **✕** blendet es bis zum nächsten Song aus
+- **⚙** öffnet die Einstellungen (Sprache, Anzeige)
 
-1. Auf <https://developer.spotify.com/dashboard> einloggen → **Create app**
-2. Bei **Redirect URI** genau die Adresse eintragen, die in der App unter ⚙︎ angezeigt wird
-   (z. B. `https://<dein-github-name>.github.io/<repo-name>/`), bei „APIs used“ **Web API** ankreuzen, speichern.
-3. Die **Client ID** der Spotify-App kopieren, in der Lyrics-App unter ⚙︎ einfügen → **Mit Spotify verbinden**.
+### Selbst bauen (optional)
 
-Jetzt einfach in Spotify Musik hören und die Lyrics-App daneben öffnen (z. B. im Split-Screen oder
-nebenher). Sie zeigt immer den aktuellen Song – auch wenn die Musik auf einem anderen Gerät läuft.
+```sh
+cd android
+./gradlew assembleRelease   # → app/build/outputs/apk/release/app-release.apk
+```
 
-Ohne Spotify-Login kannst du unter ⚙︎ → **Song manuell suchen** jeden Song nach Künstler und Titel suchen.
+---
 
-> Hinweis: Neue Spotify-Developer-Apps sind im „Development Mode“. Wenn auch andere Personen die App nutzen
-> sollen, musst du sie im Dashboard unter **User Management** mit ihrer Spotify-E-Mail hinzufügen.
+## 🍏 iPhone
+
+iOS erlaubt weder veränderte Spotify-Apps noch Fenster über anderen Apps. Deshalb gibt es für das iPhone eine
+Web-App, die erkennt, was in Spotify läuft, und die Lyrics dazu anzeigt:
+
+1. Auf GitHub: **Settings → Pages → Source: „Deploy from a branch“ → Branch `main`, Ordner `/docs`**.
+2. Auf dem iPhone in Safari `https://<github-name>.github.io/<repo-name>/` öffnen → Teilen → **„Zum Home-Bildschirm“**.
+3. Für die automatische Song-Erkennung einmalig eine App auf <https://developer.spotify.com/dashboard> anlegen,
+   als **Redirect URI** die Adresse eintragen, die in der Web-App unter ⚙︎ steht, und die **Client ID** dort einfügen.
+   Ohne Login geht auch die manuelle Suche nach Künstler und Titel.
 
 ---
 
 ## Datenschutz
 
-Alles läuft lokal im Browser bzw. in Spotify. Der Spotify-Login (OAuth mit PKCE, ohne Passwort-Weitergabe)
-wird nur auf deinem Gerät gespeichert. Künstler, Titel und Liedzeilen werden an LRCLIB, lyrics.ovh bzw.
-Google Translate geschickt, um Lyrics und Übersetzungen zu laden.
+Alles läuft auf deinem Gerät. Gesendet werden nur Künstler und Titel (an LRCLIB/lyrics.ovh) und die Liedzeilen
+(an Google Translate), um Lyrics und Übersetzung zu laden. Die Android-App liest keine Benachrichtigungsinhalte,
+sondern nur die Wiedergabe-Infos von Spotify.
+
+Hinweis: Das Verändern der Spotify-Desktop-App ist von Spotify nicht offiziell vorgesehen. Der Mod ändert nur die
+Anzeige und greift nicht in Konto, Wiedergabe oder Premium-Funktionen ein. Nutzung auf eigene Verantwortung.
