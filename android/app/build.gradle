@@ -1,0 +1,45 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.marco.lyricstranslator"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.marco.lyricstranslator"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        // Fester Schlüssel im Repo, damit sich neue Versionen über alte installieren lassen.
+        shared {
+            storeFile file("lyrics-translator.keystore")
+            storePassword "android"
+            keyAlias "lyrics"
+            keyPassword "android"
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.shared
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.shared
+        }
+    }
+
+    lint {
+        checkReleaseBuilds false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
