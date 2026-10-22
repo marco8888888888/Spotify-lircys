@@ -23,8 +23,13 @@ import java.util.List;
 
 /** Einrichtung: Berechtigungen, Zielsprache, Anzeigemodus. */
 public class MainActivity extends Activity {
-    private TextView notifStatus, overlayStatus;
-    private Button notifButton, overlayButton;
+    private TextView notifStatus, overlayStatus, a11yStatus;
+    private Button notifButton, overlayButton, a11yButton;
+
+    private void settingsChanged() {
+        NowPlaying.get(this).refreshSettings();
+        Overlay.get(this).refreshSettings();
+    }
 
     private int dp(float v) {
         return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()));
@@ -82,8 +87,10 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         text(root, "Lyrics Translator", 26, true, white);
-        text(root, "Zeigt zu jedem Song, der in Spotify läuft, die Lyrics in einem Fenster über Spotify an – "
+        text(root, "Zeigt zu jedem Song, der in Spotify läuft, die Lyrics direkt in Spotify an – "
                 + "mitlaufend und übersetzt in die Sprache deiner Wahl.", 14, false, gray);
+        Button player = button(root, "▶  Player mit Lyrics öffnen", v -> startActivity(new Intent(this, PlayerActivity.class)));
+        player.setTextSize(17);
 
         text(root, "1. Spotify mitlesen", 17, true, white);
         text(root, "Android erlaubt nur mit „Benachrichtigungszugriff“, zu sehen, welcher Song in Spotify läuft. "
@@ -101,7 +108,27 @@ public class MainActivity extends Activity {
         overlayButton = button(root, "„Über anderen Apps einblenden“ erlauben",
                 v -> startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))));
 
-        text(root, "3. Sprache", 17, true, white);
+        text(root, "3. Nur in Spotify & unter Spotifys Lyrics (empfohlen)", 17, true, white);
+        text(root, "Mit der Bedienungshilfe erscheint das Fenster nur, wenn Spotify offen ist. Und wenn du in Spotify "
+                + "die Lyrics öffnest, steht die Übersetzung direkt unter jeder Zeile. Die App liest dafür nur Texte aus Spotify.\n\n"
+                + "Einstellungen → Bedienungshilfen → Installierte Apps → „Lyrics Translator – in Spotify anzeigen“ → Ein. "
+                + "Ist es grau: wie oben „Eingeschränkte Einstellungen zulassen“.", 13, false, gray);
+        a11yStatus = text(root, "", 14, false, white);
+        a11yButton = button(root, "Bedienungshilfe einschalten",
+                v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        Switch inline = new Switch(this);
+        inline.setText("Übersetzung unter Spotifys eigenen Lyrics");
+        inline.setTextColor(white);
+        inline.setTextSize(15);
+        inline.setChecked(Prefs.inline(this));
+        inline.setPadding(0, dp(12), 0, dp(4));
+        inline.setOnCheckedChangeListener((b, on) -> {
+            Prefs.setInline(this, on);
+            settingsChanged();
+        });
+        root.addView(inline);
+
+        text(root, "4. Sprache", 17, true, white);
         List<String> codes = Prefs.sortedLanguages();
         List<String> names = new ArrayList<>();
         for (String c : codes) names.add(Prefs.langName(c));
@@ -109,7 +136,7 @@ public class MainActivity extends Activity {
             @Override
             public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
                 Prefs.setLang(MainActivity.this, codes.get(pos));
-                Overlay.get(MainActivity.this).refreshSettings();
+                settingsChanged();
             }
         });
 
@@ -122,7 +149,7 @@ public class MainActivity extends Activity {
             @Override
             public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
                 Prefs.setMode(MainActivity.this, modes[pos]);
-                Overlay.get(MainActivity.this).refreshSettings();
+                settingsChanged();
             }
         });
 
@@ -134,7 +161,7 @@ public class MainActivity extends Activity {
         enabled.setPadding(0, dp(20), 0, dp(4));
         enabled.setOnCheckedChangeListener((b, on) -> {
             Prefs.setEnabled(this, on);
-            Overlay.get(this).refreshSettings();
+            settingsChanged();
         });
         root.addView(enabled);
 
@@ -144,7 +171,7 @@ public class MainActivity extends Activity {
         });
 
         text(root, "Tipp: Fenster am Titel nach oben/unten ziehen. „—“ macht es klein (grüner Knopf), "
-                + "„✕“ blendet es bis zum nächsten Song aus.", 13, false, gray);
+                + "„✕“ blendet es bis zum nächsten Song aus, „⛶“ öffnet den Player.", 13, false, gray);
 
         setContentView(scroll);
     }
@@ -159,6 +186,10 @@ public class MainActivity extends Activity {
         overlayStatus.setText(overlay ? "✅ Erlaubt" : "❌ Noch nicht erlaubt");
         notifButton.setVisibility(notif ? View.GONE : View.VISIBLE);
         overlayButton.setVisibility(overlay ? View.GONE : View.VISIBLE);
-        Overlay.get(this).refreshSettings();
+        String services = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        boolean a11y = services != null && services.contains(getPackageName() + "/");
+        a11yStatus.setText(a11y ? "✅ Eingeschaltet" : "➖ Aus (optional)");
+        a11yButton.setVisibility(a11y ? View.GONE : View.VISIBLE);
+        settingsChanged();
     }
 }

@@ -11,38 +11,39 @@ import java.util.List;
 
 /**
  * Wird vom System gestartet, sobald die App „Benachrichtigungszugriff“ hat. Nur damit erlaubt Android,
- * die Media-Session von Spotify (Titel, Künstler, Position) mitzulesen.
+ * die Media-Session von Spotify (Titel, Künstler, Cover, Position) mitzulesen und zu steuern.
  */
 public class SpotifyListener extends NotificationListenerService {
-    private static final String SPOTIFY = "com.spotify.music";
+    static final String SPOTIFY = "com.spotify.music";
 
     private MediaSessionManager sessions;
     private MediaController controller;
-    private Overlay overlay;
+    private NowPlaying now;
 
     private final MediaSessionManager.OnActiveSessionsChangedListener sessionsChanged = this::attach;
 
     private final MediaController.Callback callback = new MediaController.Callback() {
         @Override
         public void onMetadataChanged(MediaMetadata metadata) {
-            pushMetadata(metadata);
+            now.onMetadata(metadata);
         }
 
         @Override
         public void onPlaybackStateChanged(PlaybackState state) {
-            overlay.onPlayback(state);
+            now.onPlayback(state);
         }
 
         @Override
         public void onSessionDestroyed() {
             detach();
-            overlay.onTrack(null, null, null, 0);
+            now.setController(null);
         }
     };
 
     @Override
     public void onListenerConnected() {
-        overlay = Overlay.get(this);
+        now = NowPlaying.get(this);
+        Overlay.get(this).start();
         sessions = getSystemService(MediaSessionManager.class);
         ComponentName me = new ComponentName(this, SpotifyListener.class);
         sessions.addOnActiveSessionsChangedListener(sessionsChanged, me);
@@ -53,7 +54,7 @@ public class SpotifyListener extends NotificationListenerService {
     public void onListenerDisconnected() {
         if (sessions != null) sessions.removeOnActiveSessionsChangedListener(sessionsChanged);
         detach();
-        if (overlay != null) overlay.onTrack(null, null, null, 0);
+        if (now != null) now.setController(null);
     }
 
     private void attach(List<MediaController> active) {
@@ -71,22 +72,11 @@ public class SpotifyListener extends NotificationListenerService {
         detach();
         controller = spotify;
         controller.registerCallback(callback);
-        pushMetadata(controller.getMetadata());
-        overlay.onPlayback(controller.getPlaybackState());
+        now.setController(controller);
     }
 
     private void detach() {
         if (controller != null) controller.unregisterCallback(callback);
         controller = null;
-    }
-
-    private void pushMetadata(MediaMetadata m) {
-        if (m == null) return;
-        String title = m.getString(MediaMetadata.METADATA_KEY_TITLE);
-        String artist = m.getString(MediaMetadata.METADATA_KEY_ARTIST);
-        String album = m.getString(MediaMetadata.METADATA_KEY_ALBUM);
-        long duration = m.getLong(MediaMetadata.METADATA_KEY_DURATION);
-        if (title == null || artist == null) return;
-        overlay.onTrack(title, artist.split(",")[0].trim(), album == null ? "" : album, duration);
     }
 }

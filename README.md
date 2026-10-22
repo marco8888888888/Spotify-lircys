@@ -6,7 +6,7 @@ Lyrics für (fast) jeden Song – direkt in Spotify, synchron zur Musik und übe
 | Gerät | Wie es funktioniert | Ordner |
 |---|---|---|
 | **Computer** (Windows, Mac, Linux) | Ein Installer baut den Mod direkt in die Spotify-App ein. Neben Spotifys Lyrics-Knopf erscheint ein Übersetzen-Knopf. | [`desktop/`](desktop) |
-| **Android** | Eigene App, die die Lyrics als Fenster **über Spotify** einblendet, mitlaufend zum Song. | [`android/`](android) |
+| **Android** | Eigene App: Übersetzung direkt unter Spotifys Lyrics, Lyrics-Fenster nur in Spotify, dazu ein eigener Player im Spotify-Stil. | [`android/`](android) |
 | **iPhone** | Web-App zum Installieren auf dem Home-Bildschirm. Läuft neben Spotify, weil iOS keine Fenster über anderen Apps erlaubt. | [`docs/`](docs) |
 
 ## Woher kommen die Lyrics?
@@ -58,28 +58,38 @@ zurückspielt.
 
 ---
 
-## 📱 Android: Lyrics über Spotify
+## 📱 Android: Lyrics direkt in Spotify
+
+### Was die App kann
+
+- **In Spotify:** Das Lyrics-Fenster erscheint nur, wenn Spotify offen ist, in der Farbe vom Album-Cover.
+- **Unter Spotifys eigenen Lyrics:** Öffnest du in Spotify die Lyrics, steht die Übersetzung direkt unter jeder Zeile.
+- **Eigener Player im Spotify-Stil:** Cover, Lyrics groß und mitlaufend mit Übersetzung, Fortschrittsbalken,
+  ⏮ ⏯ ⏭. Die Musik läuft dabei weiter in Spotify, der Player steuert sie nur. Tipp auf eine Zeile = dorthin springen.
 
 ### Installieren
 
 1. Auf dem Handy die neueste **`LyricsTranslator.apk`** herunterladen:
    **Releases → „Lyrics Translator (Android)“** hier im Repo.
-   (Die APK wird bei jeder Änderung automatisch von GitHub gebaut.)
+   (Die APK wird bei jeder Änderung automatisch von GitHub gebaut. Neue Versionen einfach drüber installieren.)
 2. APK öffnen → „Installation aus unbekannten Quellen“ für den Browser erlauben → **Installieren**.
-3. App **Lyrics Translator** öffnen und die zwei Berechtigungen erteilen:
-   - **Benachrichtigungszugriff** – nur darüber erlaubt Android, zu sehen, welcher Song in Spotify läuft und an welcher Stelle.
-   - **Über anderen Apps einblenden** – damit das Lyrics-Fenster über Spotify erscheinen kann.
+3. App **Lyrics Translator** öffnen und die Berechtigungen erteilen:
+   - **Benachrichtigungszugriff** – nur darüber erlaubt Android, zu sehen, welcher Song in Spotify läuft, und ihn zu steuern.
+   - **Über anderen Apps einblenden** – damit die Lyrics in Spotify erscheinen können.
+   - **Bedienungshilfe** (empfohlen) – damit das Fenster nur in Spotify erscheint und die Übersetzung unter
+     Spotifys eigenen Lyrics stehen kann. Einstellungen → Bedienungshilfen → Installierte Apps →
+     „Lyrics Translator – in Spotify anzeigen“ → Ein.
 
-   Ist der Schalter für den Benachrichtigungszugriff grau („Eingeschränkte Einstellung“, ab Android 13):
+   Sind Schalter grau („Eingeschränkte Einstellung“, ab Android 13):
    In der App auf **„App-Info öffnen“** tippen → oben rechts **⋮** → **„Eingeschränkte Einstellungen zulassen“** → nochmal versuchen.
 4. Sprache und Anzeige wählen, **Spotify öffnen**, Song abspielen – fertig.
 
 ### Bedienung
 
 - Fenster am Titel **nach oben/unten ziehen**
+- **⛶** öffnet den Vollbild-Player, **⚙** die Einstellungen
 - **—** macht es zu einem kleinen grünen Knopf, Tippen darauf öffnet es wieder
 - **✕** blendet es bis zum nächsten Song aus
-- **⚙** öffnet die Einstellungen (Sprache, Anzeige)
 
 ### Selbst bauen (optional)
 
@@ -107,7 +117,7 @@ Web-App, die erkennt, was in Spotify läuft, und die Lyrics dazu anzeigt:
 
 Alles läuft auf deinem Gerät. Gesendet werden nur Künstler und Titel (an LRCLIB/lyrics.ovh) und die Liedzeilen
 (an Google Translate), um Lyrics und Übersetzung zu laden. Die Android-App liest keine Benachrichtigungsinhalte,
-sondern nur die Wiedergabe-Infos von Spotify.
+sondern nur die Wiedergabe-Infos von Spotify; die Bedienungshilfe liest nur Texte, die Spotify gerade anzeigt.
 
 Hinweis: Das Verändern der Spotify-Desktop-App ist von Spotify nicht offiziell vorgesehen. Der Mod ändert nur die
 Anzeige und greift nicht in Konto, Wiedergabe oder Premium-Funktionen ein. Nutzung auf eigene Verantwortung.

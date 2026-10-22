@@ -57,6 +57,15 @@ final class Prefs {
         sp(c).edit().putBoolean("enabled", v).apply();
     }
 
+    /** Übersetzung direkt unter Spotifys eigenen Lyrics-Zeilen (braucht die Bedienungshilfe). */
+    static boolean inline(Context c) {
+        return sp(c).getBoolean("inline", true);
+    }
+
+    static void setInline(Context c, boolean v) {
+        sp(c).edit().putBoolean("inline", v).apply();
+    }
+
     static int overlayY(Context c) {
         return sp(c).getInt("overlayY", 200);
     }
