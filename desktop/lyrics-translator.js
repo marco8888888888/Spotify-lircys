@@ -238,7 +238,23 @@
   // Spotify zeigt seine Lyrics als einzelne Zeilen-Elemente. Wir übersetzen genau den Text, den Spotify anzeigt,
   // und hängen die Übersetzung in jede Zeile ein – so übernimmt sie Spotifys Schrift, Farbe und Hervorhebung.
 
+  const VERSION = "3";
   const LINE_SELECTOR = '[data-testid="fullscreen-lyric"], [data-testid="lyrics-line"], .lyrics-lyricsContent-lyric';
+
+  // Spotify benennt seine Elemente gelegentlich um. Wenn die bekannten Namen nichts finden, nehmen wir jedes
+  // Element, dessen data-testid "lyric" enthält und das keine weiteren solchen Elemente enthält (also eine Zeile ist).
+  function findLyricLines() {
+    const known = document.querySelectorAll(LINE_SELECTOR);
+    if (known.length) return [...known];
+    return [...document.querySelectorAll('[data-testid*="lyric" i]')].filter(
+      (el) =>
+        !el.closest("button, #lt-pop, #lt-panel") &&
+        el.tagName !== "BUTTON" &&
+        !el.querySelector('[data-testid*="lyric" i]') &&
+        el.textContent.trim().length > 0 &&
+        el.textContent.length < 300
+    );
+  }
   const inline = {
     on: store.get("inline", "true") === "true",
     cache: new Map(), // "lang\u0000text" -> Übersetzung ("" = schon in Zielsprache)
@@ -262,7 +278,7 @@
   }
 
   function scanInline() {
-    const els = document.querySelectorAll(LINE_SELECTOR);
+    const els = findLyricLines();
     inline.lineCount = els.length;
     if (!inline.on || state.mode === "original") {
       clearInline();
@@ -436,7 +452,8 @@
         </select>
       </label>
       <div class="lt-hint" id="lt-pop-hint"></div>
-      <button class="lt-btn" id="lt-pop-panel">Eigene Lyrics-Ansicht öffnen</button>`;
+      <button class="lt-btn" id="lt-pop-panel">Eigene Lyrics-Ansicht öffnen</button>
+      <div class="lt-hint" id="lt-pop-diag" style="font-size:11px;color:#7a7a7a"></div>`;
     document.body.appendChild(pop);
 
     const langSelects = [$("lt-lang"), pop.querySelector("#lt-pop-lang")];
@@ -513,6 +530,7 @@
     if (noSpotifyLyrics) hint = "Spotify hat für diesen Song keine Lyrics. Nutze die eigene Lyrics-Ansicht – sie sucht in weiteren Quellen.";
     else if (!inline.lineCount) hint = "Öffne in Spotify die Lyrics (Mikrofon-Knopf). Die Übersetzung erscheint dann unter jeder Zeile.";
     pop.querySelector("#lt-pop-hint").textContent = hint;
+    pop.querySelector("#lt-pop-diag").textContent = `Version ${VERSION} · gefundene Lyrics-Zeilen: ${inline.lineCount}`;
   }
 
   // Knopf neben Spotifys eigenen Lyrics-Knopf setzen; falls es den nicht gibt, schwebend unten rechts.
