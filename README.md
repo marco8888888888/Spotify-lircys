@@ -5,7 +5,7 @@ Lyrics für (fast) jeden Song – direkt in Spotify, synchron zur Musik und übe
 
 | Gerät | Wie es funktioniert | Ordner |
 |---|---|---|
-| **Computer** (Windows, Mac, Linux) | Ein Installer baut den Mod direkt in die Spotify-App ein. Neben Spotifys Lyrics-Knopf erscheint ein Übersetzen-Knopf. | [`desktop/`](desktop) |
+| **Computer** (Windows, Mac, Linux) | Ein Installer baut den Mod direkt in die Spotify-App ein. Die Übersetzung steht direkt in Spotifys Lyrics unter jeder Zeile, unten rechts gibt es nur einen Übersetzen-Knopf. | [`desktop/`](desktop) |
 | **Android** | Eigene App: Übersetzung direkt unter Spotifys Lyrics, Lyrics-Fenster nur in Spotify, dazu ein eigener Player im Spotify-Stil. | [`android/`](android) |
 | **iPhone** | Web-App zum Installieren auf dem Home-Bildschirm. Läuft neben Spotify, weil iOS keine Fenster über anderen Apps erlaubt. | [`docs/`](docs) |
 
@@ -33,8 +33,17 @@ Voraussetzung: die normale Spotify-App von <https://www.spotify.com/download>
 
 1. Dieses Repo herunterladen: grüner Knopf **Code → Download ZIP**, entpacken.
 2. Im Ordner `desktop` doppelt auf **`install-windows.bat`** klicken.
-3. Spotify startet neu. Unten rechts neben dem Lyrics-Knopf ist jetzt der **Übersetzen-Knopf (文A)**.
-   Alternativ: **Strg + Umschalt + L**.
+3. Spotify startet neu. Unten rechts neben dem Lyrics-Knopf (Mikrofon) ist jetzt der **Übersetzen-Knopf (文A)**.
+
+So benutzt du es:
+
+- In Spotify wie gewohnt die **Lyrics öffnen** (Mikrofon-Knopf). Die Übersetzung steht direkt **unter jeder Zeile** –
+  in Spotifys Schrift, und sie leuchtet mit der aktuellen Zeile mit.
+- Klick auf den **Übersetzen-Knopf** öffnet ein kleines Menü: an/aus, Sprache, Anzeige
+  (Original + Übersetzung / nur Übersetzung / nur Original).
+- **Strg + Umschalt + L** schaltet die Übersetzung schnell an/aus.
+- Hat Spotify für einen Song **keine Lyrics**, im Menü auf **„Eigene Lyrics-Ansicht öffnen“** klicken – sie sucht in
+  weiteren Quellen (LRCLIB, lyrics.ovh).
 
 Entfernen: `uninstall-windows.bat` doppelklicken.
 

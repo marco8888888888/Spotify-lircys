@@ -234,6 +234,99 @@
   };
   const translationCache = new Map();
 
+  // ---------- Übersetzung direkt in Spotifys Lyrics-Ansicht ----------
+  // Spotify zeigt seine Lyrics als einzelne Zeilen-Elemente. Wir übersetzen genau den Text, den Spotify anzeigt,
+  // und hängen die Übersetzung in jede Zeile ein – so übernimmt sie Spotifys Schrift, Farbe und Hervorhebung.
+
+  const LINE_SELECTOR = '[data-testid="fullscreen-lyric"], [data-testid="lyrics-line"], .lyrics-lyricsContent-lyric';
+  const inline = {
+    on: store.get("inline", "true") === "true",
+    cache: new Map(), // "lang\u0000text" -> Übersetzung ("" = schon in Zielsprache)
+    busy: false,
+    queued: false,
+    lineCount: 0,
+  };
+
+  function ownText(el) {
+    let t = "";
+    for (const n of el.childNodes) {
+      if (n.nodeType === 1 && n.classList.contains("lt-inline")) continue;
+      t += n.textContent;
+    }
+    return t.replace(/\s+/g, " ").trim();
+  }
+
+  function clearInline() {
+    document.querySelectorAll(".lt-inline").forEach((n) => n.remove());
+    document.querySelectorAll(".lt-only").forEach((n) => n.classList.remove("lt-only"));
+  }
+
+  function scanInline() {
+    const els = document.querySelectorAll(LINE_SELECTOR);
+    inline.lineCount = els.length;
+    if (!inline.on || state.mode === "original") {
+      clearInline();
+      return;
+    }
+    const lang = state.targetLang;
+    const missing = new Set();
+    for (const el of els) {
+      const text = ownText(el);
+      let node = el.querySelector(":scope > .lt-inline");
+      const trans = text ? inline.cache.get(lang + "\u0000" + text) : "";
+      if (trans === undefined) missing.add(text);
+      if (!trans) {
+        if (node) node.remove();
+        el.classList.remove("lt-only");
+        continue;
+      }
+      if (!node) {
+        node = document.createElement("div");
+        node.className = "lt-inline";
+        el.appendChild(node);
+      }
+      if (node.textContent !== trans) node.textContent = trans;
+      const only = state.mode === "translation";
+      if (only && !el.classList.contains("lt-only")) el.style.setProperty("--lt-fs", getComputedStyle(el).fontSize);
+      el.classList.toggle("lt-only", only);
+    }
+    if (missing.size) translateMissing([...missing], lang);
+  }
+
+  async function translateMissing(texts, lang) {
+    if (inline.busy) {
+      inline.queued = true;
+      return;
+    }
+    inline.busy = true;
+    try {
+      const r = await translateLines(texts.map((text) => ({ text })), lang);
+      const already = r.detected && r.detected.split("-")[0] === lang.split("-")[0];
+      texts.forEach((t, i) => {
+        const out = r.lines[i] || "";
+        inline.cache.set(lang + "\u0000" + t, already || out === t ? "" : out);
+      });
+    } catch (e) {
+      console.warn("[Lyrics Translator]", e);
+      // Später nochmal versuchen, aber nicht in einer Endlosschleife.
+      await new Promise((res) => setTimeout(res, 5000));
+    } finally {
+      inline.busy = false;
+    }
+    if (inline.queued) inline.queued = false;
+    scanInline();
+  }
+
+  let scanTimer = null;
+  function queueScan() {
+    if (scanTimer) return;
+    scanTimer = setTimeout(() => {
+      scanTimer = null;
+      if (toggleBtn) placeToggle();
+      scanInline();
+    }, 200);
+  }
+
   const ICON = `<svg height="16" width="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>`;
 
   const CSS = `
@@ -256,11 +349,37 @@
   .lt-gap{height:14px}
   #lt-msg{padding:24px 14px;color:#b3b3b3;font-size:14px}
   #lt-msg:empty{display:none}
-  #lt-toggle{background:none;border:0;color:#b3b3b3;cursor:pointer;padding:8px;display:inline-flex;align-items:center}
-  #lt-toggle:hover{color:#fff}#lt-toggle.on{color:#1ed760}
-  #lt-toggle.floating{position:fixed;right:20px;bottom:100px;z-index:9999;background:#1ed760;color:#000;border-radius:50%;padding:12px;box-shadow:0 4px 16px rgba(0,0,0,.5)}`;
+  #lt-toggle{position:relative;background:none;border:0;color:#b3b3b3;cursor:pointer;padding:8px;display:inline-flex;align-items:center}
+  #lt-toggle:hover{color:#fff;transform:scale(1.04)}
+  #lt-toggle.on{color:#1ed760}
+  #lt-toggle.on::after{content:"";position:absolute;bottom:2px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#1ed760}
+  #lt-toggle.floating{position:fixed;right:20px;bottom:100px;z-index:9999;background:#1ed760;color:#000;border-radius:50%;padding:12px;box-shadow:0 4px 16px rgba(0,0,0,.5)}
 
-  let panel, linesEl, toggleBtn;
+  /* Übersetzung in Spotifys eigenen Lyrics-Zeilen: erbt Farbe und Hervorhebung der Zeile */
+  .lt-inline{display:block;font-size:.62em;font-weight:600;line-height:1.3;margin-top:.2em;opacity:.85;color:inherit;letter-spacing:0;pointer-events:none}
+  .lt-only{font-size:0!important}
+  .lt-only>:not(.lt-inline){display:none!important}
+  .lt-only>.lt-inline{font-size:var(--lt-fs,1em)!important;font-weight:inherit;opacity:1;margin:0;line-height:inherit}
+
+  /* Kleines Menü über dem Knopf, im Stil von Spotifys Kontextmenüs */
+  #lt-pop{position:fixed;right:16px;bottom:96px;z-index:10000;width:300px;background:#282828;color:#fff;border-radius:6px;
+    box-shadow:0 16px 24px rgba(0,0,0,.3),0 6px 8px rgba(0,0,0,.2);padding:14px;font-size:14px;display:flex;flex-direction:column;gap:12px}
+  #lt-pop[hidden]{display:none}
+  #lt-pop h3{margin:0;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+  #lt-pop h3 svg{color:#1ed760}
+  #lt-pop label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#b3b3b3}
+  #lt-pop select{background:#3e3e3e;color:#fff;border:0;border-radius:4px;padding:8px;font-size:13px}
+  #lt-pop .lt-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;color:#fff}
+  #lt-pop .lt-hint{font-size:12px;color:#b3b3b3;line-height:1.4}
+  #lt-pop .lt-hint:empty{display:none}
+  #lt-pop .lt-btn{background:transparent;color:#fff;border:1px solid #878787;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer}
+  #lt-pop .lt-btn:hover{border-color:#fff;transform:scale(1.02)}
+  .lt-switch{position:relative;width:40px;height:22px;flex:none;appearance:none;-webkit-appearance:none;background:#727272;border-radius:11px;cursor:pointer;transition:background .2s;margin:0}
+  .lt-switch::before{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
+  .lt-switch:checked{background:#1ed760}
+  .lt-switch:checked::before{transform:translateX(18px)}`;
+
+  let panel, linesEl, toggleBtn, pop;
   const $ = (id) => panel.querySelector("#" + id);
 
   let displayNames = null;
@@ -301,43 +420,105 @@
     document.body.appendChild(panel);
     linesEl = $("lt-lines");
 
-    const langSelect = $("lt-lang");
-    LANGUAGES.map((c) => [c, langName(c)])
-      .sort((a, b) => a[1].localeCompare(b[1]))
-      .forEach(([c, n]) => langSelect.add(new Option(n, c)));
-    if (!LANGUAGES.includes(state.targetLang)) state.targetLang = "de";
-    langSelect.value = state.targetLang;
-    $("lt-mode").value = state.mode;
+    // Menü am Übersetzen-Knopf
+    pop = document.createElement("div");
+    pop.id = "lt-pop";
+    pop.hidden = true;
+    pop.innerHTML = `
+      <h3>${ICON}Lyrics übersetzen</h3>
+      <div class="lt-row">In Spotifys Lyrics anzeigen<input type="checkbox" class="lt-switch" id="lt-inline-on"></div>
+      <label>Übersetzen in<select id="lt-pop-lang"></select></label>
+      <label>Anzeige
+        <select id="lt-pop-mode">
+          <option value="both">Original + Übersetzung</option>
+          <option value="translation">Nur Übersetzung</option>
+          <option value="original">Nur Original</option>
+        </select>
+      </label>
+      <div class="lt-hint" id="lt-pop-hint"></div>
+      <button class="lt-btn" id="lt-pop-panel">Eigene Lyrics-Ansicht öffnen</button>`;
+    document.body.appendChild(pop);
 
-    langSelect.addEventListener("change", () => {
-      state.targetLang = langSelect.value;
-      store.set("lang", state.targetLang);
-      runTranslation();
-    });
-    $("lt-mode").addEventListener("change", () => {
-      state.mode = $("lt-mode").value;
-      store.set("mode", state.mode);
-      if (state.mode !== "original" && !state.translations) runTranslation();
-      else render();
+    const langSelects = [$("lt-lang"), pop.querySelector("#lt-pop-lang")];
+    const modeSelects = [$("lt-mode"), pop.querySelector("#lt-pop-mode")];
+    const sortedLangs = LANGUAGES.map((c) => [c, langName(c)]).sort((a, b) => a[1].localeCompare(b[1]));
+    if (!LANGUAGES.includes(state.targetLang)) state.targetLang = "de";
+    for (const s of langSelects) {
+      sortedLangs.forEach(([c, n]) => s.add(new Option(n, c)));
+      s.value = state.targetLang;
+      s.addEventListener("change", () => {
+        state.targetLang = s.value;
+        store.set("lang", state.targetLang);
+        langSelects.forEach((o) => (o.value = s.value));
+        runTranslation();
+        scanInline();
+      });
+    }
+    for (const s of modeSelects) {
+      s.value = state.mode;
+      s.addEventListener("change", () => {
+        state.mode = s.value;
+        store.set("mode", state.mode);
+        modeSelects.forEach((o) => (o.value = s.value));
+        clearInline();
+        scanInline();
+        if (state.mode !== "original" && !state.translations) runTranslation();
+        else render();
+      });
+    }
+    const inlineSwitch = pop.querySelector("#lt-inline-on");
+    inlineSwitch.checked = inline.on;
+    inlineSwitch.addEventListener("change", () => setInline(inlineSwitch.checked));
+    pop.querySelector("#lt-pop-panel").addEventListener("click", () => {
+      pop.hidden = true;
+      setOpen(true);
     });
     $("lt-close").addEventListener("click", () => setOpen(false));
+
     document.addEventListener("keydown", (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "l") setOpen(panel.hidden);
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "l") setInline(!inline.on);
+      if (e.key === "Escape") pop.hidden = true;
+    });
+    document.addEventListener("mousedown", (e) => {
+      if (!pop.hidden && !pop.contains(e.target) && !toggleBtn.contains(e.target)) pop.hidden = true;
     });
 
     toggleBtn = document.createElement("button");
     toggleBtn.id = "lt-toggle";
     toggleBtn.title = "Lyrics übersetzen (Strg+Umschalt+L)";
     toggleBtn.innerHTML = ICON;
-    toggleBtn.addEventListener("click", () => setOpen(panel.hidden));
+    toggleBtn.addEventListener("click", () => {
+      pop.hidden = !pop.hidden;
+      if (!pop.hidden) updateHint();
+    });
     placeToggle();
     // Spotify baut seine Leiste beim Start (und manchmal danach) neu – Knopf bei Bedarf wieder einsetzen.
     setInterval(placeToggle, 1500);
+
+    new MutationObserver(queueScan).observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+
+  function setInline(on) {
+    inline.on = on;
+    store.set("inline", String(on));
+    pop.querySelector("#lt-inline-on").checked = on;
+    toggleBtn.classList.toggle("on", on);
+    scanInline();
+  }
+
+  function updateHint() {
+    const lyricsBtn = q('[data-testid="lyrics-button"]');
+    const noSpotifyLyrics = lyricsBtn && (lyricsBtn.disabled || lyricsBtn.getAttribute("aria-disabled") === "true");
+    let hint = "";
+    if (noSpotifyLyrics) hint = "Spotify hat für diesen Song keine Lyrics. Nutze die eigene Lyrics-Ansicht – sie sucht in weiteren Quellen.";
+    else if (!inline.lineCount) hint = "Öffne in Spotify die Lyrics (Mikrofon-Knopf). Die Übersetzung erscheint dann unter jeder Zeile.";
+    pop.querySelector("#lt-pop-hint").textContent = hint;
   }
 
   // Knopf neben Spotifys eigenen Lyrics-Knopf setzen; falls es den nicht gibt, schwebend unten rechts.
   function placeToggle() {
     if (!panel.isConnected) document.body.appendChild(panel);
+    if (!pop.isConnected) document.body.appendChild(pop);
     const anchor = q('[data-testid="lyrics-button"]');
     if (anchor && anchor.parentElement) {
       if (toggleBtn.previousElementSibling !== anchor) {
@@ -348,13 +529,12 @@
       toggleBtn.classList.add("floating");
       document.body.appendChild(toggleBtn);
     }
-    toggleBtn.classList.toggle("on", !panel.hidden);
+    toggleBtn.classList.toggle("on", inline.on);
   }
 
   function setOpen(open) {
     panel.hidden = !open;
     store.set("open", String(open));
-    toggleBtn.classList.toggle("on", open);
     state.activeIndex = -1;
     if (open) loadTrack();
   }
