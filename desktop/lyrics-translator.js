@@ -263,7 +263,7 @@
   // Spotify zeigt seine Lyrics als einzelne Zeilen-Elemente. Wir übersetzen genau den Text, den Spotify anzeigt,
   // und hängen die Übersetzung in jede Zeile ein – so übernimmt sie Spotifys Schrift, Farbe und Hervorhebung.
 
-  const VERSION = "4";
+  const VERSION = "5";
   const LINE_SELECTOR = '[data-testid="fullscreen-lyric"], [data-testid="lyrics-line"], .lyrics-lyricsContent-lyric';
 
   // Spotify benennt seine Elemente gelegentlich um. Wenn die bekannten Namen nichts finden, nehmen wir jedes
@@ -741,8 +741,22 @@
     runTranslation();
   }
 
+  // Kurze Einblendung beim Start, damit man sofort sieht, dass der Mod geladen ist.
+  function showStartToast() {
+    const t = document.createElement("div");
+    t.textContent = `Lyrics Translator aktiv (Version ${VERSION})`;
+    t.style.cssText =
+      "position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:10001;background:#1ed760;color:#000;" +
+      "font-weight:700;font-size:14px;padding:10px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.5);" +
+      "transition:opacity .4s;pointer-events:none";
+    document.body.appendChild(t);
+    setTimeout(() => (t.style.opacity = "0"), 3000);
+    setTimeout(() => t.remove(), 3600);
+  }
+
   function start() {
     buildUi();
+    showStartToast();
     setInterval(loadTrack, 1000);
     setInterval(tick, 200);
     // Zusätzlich zum MutationObserver regelmäßig nach Spotifys Lyrics-Zeilen sehen.

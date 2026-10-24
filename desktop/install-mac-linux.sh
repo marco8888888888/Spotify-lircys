@@ -38,7 +38,7 @@ if [ -z "$SPA" ] && [ -n "$FOLDER" ]; then
     exit 0
   fi
   [ -f "$SOURCE" ] || { echo "$NAME fehlt neben diesem Script." >&2; exit 1; }
-  grep -qF "$MARKER" "$INDEX" || { cp -f "$INDEX" "$INDEX.bak"; perl -0pi -e "s|(<head[^>]*>)|\$1$MARKER<script src=\"$NAME\"></script>|" "$INDEX"; }
+  grep -qF "$MARKER" "$INDEX" || { cp -f "$INDEX" "$INDEX.bak"; perl -0pi -e "s|(<head[^>]*>)|\$1$MARKER<script src=\"/$NAME\"></script>|" "$INDEX"; }
   cp -f "$SOURCE" "$FOLDER/$NAME"
   echo
   echo "Fertig! Lyrics Translator ist in Spotify eingebaut."
@@ -82,7 +82,7 @@ if command -v unzip >/dev/null && command -v zip >/dev/null; then
   grep -qF "$MARKER" "$WORK/index.html" || cp -f "$SPA" "$BACKUP"
   if ! grep -qF "$MARKER" "$WORK/index.html"; then
     # Direkt nach <head>, damit das Script vor Spotifys eigenem Code geladen wird.
-    perl -0pi -e "s|(<head[^>]*>)|\$1$MARKER<script src=\"$NAME\"></script>|" "$WORK/index.html"
+    perl -0pi -e "s|(<head[^>]*>)|\$1$MARKER<script src=\"/$NAME\"></script>|" "$WORK/index.html"
   fi
   cp "$SOURCE" "$WORK/$NAME"
   (cd "$WORK" && zip -q "$SPA" index.html "$NAME")
@@ -95,7 +95,7 @@ with zipfile.ZipFile(spa) as z:
 html = entries["index.html"].decode("utf-8")
 if marker not in html:
     shutil.copyfile(spa, backup)
-    html = re.sub(r"(<head[^>]*>)", lambda m: m.group(1) + marker + f'<script src="{name}"></script>', html, count=1)
+    html = re.sub(r"(<head[^>]*>)", lambda m: m.group(1) + marker + f'<script src="/{name}"></script>', html, count=1)
 entries["index.html"] = html.encode("utf-8")
 entries[name] = open(source, "rb").read()
 with zipfile.ZipFile(spa, "w", zipfile.ZIP_DEFLATED) as z:

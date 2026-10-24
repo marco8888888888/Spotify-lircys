@@ -37,16 +37,33 @@ if (-not $spa -and -not $folder) {
 if (-not (Test-Path $source)) { Fail "$scriptName fehlt neben diesem Installer. Bitte den ganzen Ordner 'desktop' entpacken." }
 
 $target = if ($spa) { $spa } else { $folder }
+$spotifyDir = Split-Path (Split-Path $target)
+$exePath = Join-Path $spotifyDir "Spotify.exe"
 Write-Host "Spotify gefunden: $target"
-Get-Process -Name "Spotify" -ErrorAction SilentlyContinue | Stop-Process -Force
+if (Test-Path $exePath) { Write-Host "Spotify-Version: $((Get-Item $exePath).VersionInfo.ProductVersion)" }
+
+# Welche Spotify-App laeuft gerade? Wenn es die Store-Version ist, wirkt der Mod dort nicht.
+$running = Get-Process -Name "Spotify" -ErrorAction SilentlyContinue
+$runningPaths = @($running | ForEach-Object { try { $_.Path } catch { $null } } | Where-Object { $_ } | Select-Object -Unique)
+$storeInstalled = [bool](Get-AppxPackage -Name "SpotifyAB.SpotifyMusic" -ErrorAction SilentlyContinue)
+if (($runningPaths | Where-Object { $_ -like "*WindowsApps*" }) -or $storeInstalled) {
+    Write-Host ""
+    Write-Host "ACHTUNG: Auf diesem PC ist auch die Microsoft-Store-Version von Spotify installiert." -ForegroundColor Yellow
+    Write-Host "Der Mod funktioniert nur in der normalen Version. Bitte die Store-Version deinstallieren" -ForegroundColor Yellow
+    Write-Host "(Einstellungen > Apps > Spotify > Deinstallieren) und immer diese Spotify starten:" -ForegroundColor Yellow
+    Write-Host "  $exePath" -ForegroundColor Yellow
+    Write-Host ""
+}
+$running | Stop-Process -Force
 Start-Sleep -Milliseconds 1200
 
 function Add-Script([string]$html) {
-    if ($html.Contains($marker)) { return $html }
+    # Aeltere Installationen haben einen relativen Pfad eingetragen - auf absoluten umstellen.
+    if ($html.Contains($marker)) { return $html.Replace("<script src=""$scriptName"">", "<script src=""/$scriptName"">") }
     # Direkt nach <head>, damit das Script vor Spotifys eigenem Code geladen wird.
     $regex = [regex]"<head[^>]*>"
     if (-not $regex.IsMatch($html)) { Fail "Spotifys index.html sieht anders aus als erwartet. Bitte melden." }
-    return $regex.Replace($html, { param($m) $m.Value + $marker + "<script src=""$scriptName""></script>" }, 1)
+    return $regex.Replace($html, { param($m) $m.Value + $marker + "<script src=""/$scriptName""></script>" }, 1)
 }
 
 function Read-Entry($zip, $name) {
@@ -99,12 +116,24 @@ try {
     Fail "Konnte Spotify nicht veraendern: $($_.Exception.Message)`nIst Spotify wirklich geschlossen? Notfalls den PC neu starten und den Installer direkt danach ausfuehren."
 }
 
+# Pruefen, ob die Aenderung wirklich drin ist.
+$ok = $false
+try {
+    if ($spa) {
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($spa)
+        try { $ok = (Read-Entry $zip "index.html").Contains($marker) -and ($zip.GetEntry($scriptName) -ne $null) } finally { $zip.Dispose() }
+    } else {
+        $ok = ([System.IO.File]::ReadAllText((Join-Path $folder "index.html"), $utf8)).Contains($marker) -and (Test-Path (Join-Path $folder $scriptName))
+    }
+} catch { $ok = $false }
+if (-not $ok) { Fail "Die Aenderung ist nach dem Einbau nicht in Spotify zu finden. Bitte ein Foto von diesem Fenster schicken." }
+
 Write-Host ""
-Write-Host "Fertig! Lyrics Translator ist in Spotify eingebaut." -ForegroundColor Green
+Write-Host "Fertig! Lyrics Translator ist in Spotify eingebaut (geprueft)." -ForegroundColor Green
+Write-Host "Beim Start von Spotify erscheint kurz unten 'Lyrics Translator aktiv (Version 5)'."
 Write-Host "Unten rechts neben dem Mikrofon-Knopf (Lyrics) ist jetzt ein Uebersetzen-Knopf."
 Write-Host "Oeffne in Spotify die Lyrics - die Uebersetzung steht unter jeder Zeile."
 Write-Host "Nach einem Spotify-Update einfach diesen Installer nochmal starten."
 
-$exe = Join-Path (Split-Path (Split-Path $target)) "Spotify.exe"
-if (-not (Test-Path $exe)) { $exe = Join-Path (Split-Path (Split-Path (Split-Path $target))) "Spotify.exe" }
-if (Test-Path $exe) { Start-Process $exe }
+Write-Host "Kommt diese Meldung nicht, schick bitte ein Foto von diesem Fenster."
+if (Test-Path $exePath) { Start-Process $exePath }
