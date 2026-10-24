@@ -169,15 +169,41 @@
 
   // ---------- Übersetzung ----------
 
-  async function translateChunk(text, target) {
-    const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(target)}&dt=t`, {
+  // Weg 1: liefert pro Zeile eine eigene Übersetzung – keine Zuordnungsfehler bei Zeilenumbrüchen.
+  async function translateViaDict(texts, target) {
+    const res = await fetch(`https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=${encodeURIComponent(target)}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-      body: "q=" + encodeURIComponent(text),
+      body: texts.map((t) => "q=" + encodeURIComponent(t)).join("&"),
     });
     if (!res.ok) throw new Error("Übersetzung fehlgeschlagen (" + res.status + ")");
     const data = await res.json();
-    return { text: data[0].map((s) => s[0]).join(""), detected: data[2] };
+    if (!Array.isArray(data) || data.length !== texts.length) throw new Error("Unerwartete Antwort");
+    const lines = data.map((d) => (Array.isArray(d) ? d[0] : d) || "");
+    const detected = Array.isArray(data[0]) ? data[0][1] : null;
+    return { lines, detected };
+  }
+
+  // Weg 2 (Rückfall): alles als ein Text mit Zeilenumbrüchen übersetzen und wieder aufteilen.
+  async function translateViaGtx(texts, target) {
+    const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(target)}&dt=t`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: "q=" + encodeURIComponent(texts.join("\n")),
+    });
+    if (!res.ok) throw new Error("Übersetzung fehlgeschlagen (" + res.status + ")");
+    const data = await res.json();
+    const parts = data[0].map((s) => s[0]).join("").split("\n");
+    return { lines: texts.map((_, j) => (parts[j] || "").trim()), detected: data[2] };
+  }
+
+  async function translateChunk(texts, target) {
+    try {
+      return await translateViaDict(texts, target);
+    } catch (e) {
+      console.warn("[Lyrics Translator] Übersetzung Weg 1 fehlgeschlagen, versuche Weg 2", e);
+      return translateViaGtx(texts, target);
+    }
   }
 
   // Übersetzt alle nicht-leeren Zeilen gebündelt und ordnet sie wieder den Originalzeilen zu.
@@ -197,10 +223,9 @@
     let detected = null;
     for (const chunk of chunks) {
       if (!chunk.length) continue;
-      const r = await translateChunk(chunk.map((i) => lines[i].text).join("\n"), target);
+      const r = await translateChunk(chunk.map((i) => lines[i].text), target);
       detected = detected || r.detected;
-      const parts = r.text.split("\n");
-      chunk.forEach((i, j) => (out[i] = (parts[j] || "").trim()));
+      chunk.forEach((i, j) => (out[i] = (r.lines[j] || "").trim()));
     }
     return { lines: out, detected };
   }
@@ -238,14 +263,55 @@
   // Spotify zeigt seine Lyrics als einzelne Zeilen-Elemente. Wir übersetzen genau den Text, den Spotify anzeigt,
   // und hängen die Übersetzung in jede Zeile ein – so übernimmt sie Spotifys Schrift, Farbe und Hervorhebung.
 
-  const VERSION = "3";
+  const VERSION = "4";
   const LINE_SELECTOR = '[data-testid="fullscreen-lyric"], [data-testid="lyrics-line"], .lyrics-lyricsContent-lyric';
 
   // Spotify benennt seine Elemente gelegentlich um. Wenn die bekannten Namen nichts finden, nehmen wir jedes
   // Element, dessen data-testid "lyric" enthält und das keine weiteren solchen Elemente enthält (also eine Zeile ist).
+  // Spotify gibt seinen Lyrics-Zeilen zufällige Klassennamen, die sich mit jeder Version ändern. Das Muster in
+  // Spotifys CSS bleibt aber gleich: Zeile = ".X { color: var(--lyrics-color-inactive) }", aktuelle Zeile =
+  // ".X.Y { color: var(--lyrics-color-active) }". Daraus lesen wir den Namen der Zeilen-Klasse zur Laufzeit ab.
+  let lineClass = null;
+  let lineClassCheckedAt = 0;
+  function detectLineClass() {
+    // Stylesheets laden teils später nach – bis die Klasse gefunden ist, höchstens alle 1,5 s neu suchen.
+    if (lineClass || performance.now() - lineClassCheckedAt < 1500) return lineClass;
+    lineClassCheckedAt = performance.now();
+    const inactive = new Set();
+    const activeCompound = [];
+    const visit = (rules) => {
+      for (const r of rules) {
+        if (r.cssRules && !r.selectorText) {
+          visit(r.cssRules);
+          continue;
+        }
+        const sel = r.selectorText;
+        const color = r.style && r.style.getPropertyValue("color");
+        if (!sel || !color || !color.includes("--lyrics-color-")) continue;
+        let m;
+        if (color.includes("--lyrics-color-inactive") && (m = /^\.([\w-]+)$/.exec(sel))) inactive.add(m[1]);
+        if (color.includes("--lyrics-color-active") && (m = /^\.([\w-]+)\.[\w-]+$/.exec(sel))) activeCompound.push(m[1]);
+      }
+    };
+    for (const sheet of document.styleSheets) {
+      try {
+        visit(sheet.cssRules);
+      } catch (_) {
+        // fremde Stylesheets lassen sich nicht lesen – überspringen
+      }
+    }
+    lineClass = activeCompound.find((c) => inactive.has(c)) || lineClass;
+    return lineClass;
+  }
+
   function findLyricLines() {
     const known = document.querySelectorAll(LINE_SELECTOR);
     if (known.length) return [...known];
+    const cls = detectLineClass();
+    if (cls) {
+      const lines = document.getElementsByClassName(cls);
+      if (lines.length) return [...lines];
+    }
     return [...document.querySelectorAll('[data-testid*="lyric" i]')].filter(
       (el) =>
         !el.closest("button, #lt-pop, #lt-panel") &&
@@ -417,7 +483,7 @@
 
     panel = document.createElement("div");
     panel.id = "lt-panel";
-    panel.hidden = store.get("open", "false") !== "true";
+    panel.hidden = true;
     panel.innerHTML = `
       <div id="lt-head">
         <div id="lt-titlerow"><div id="lt-title">Lyrics Translator</div><button id="lt-close" title="Schließen">✕</button></div>
@@ -452,7 +518,7 @@
         </select>
       </label>
       <div class="lt-hint" id="lt-pop-hint"></div>
-      <button class="lt-btn" id="lt-pop-panel">Eigene Lyrics-Ansicht öffnen</button>
+      <button class="lt-btn" id="lt-pop-panel">Große Lyrics-Ansicht öffnen</button>
       <div class="lt-hint" id="lt-pop-diag" style="font-size:11px;color:#7a7a7a"></div>`;
     document.body.appendChild(pop);
 
@@ -527,7 +593,7 @@
     const lyricsBtn = q('[data-testid="lyrics-button"]');
     const noSpotifyLyrics = lyricsBtn && (lyricsBtn.disabled || lyricsBtn.getAttribute("aria-disabled") === "true");
     let hint = "";
-    if (noSpotifyLyrics) hint = "Spotify hat für diesen Song keine Lyrics. Nutze die eigene Lyrics-Ansicht – sie sucht in weiteren Quellen.";
+    if (noSpotifyLyrics) hint = "Spotify hat für diesen Song keine Lyrics. Nutze die große Lyrics-Ansicht unten – sie sucht in weiteren Quellen.";
     else if (!inline.lineCount) hint = "Öffne in Spotify die Lyrics (Mikrofon-Knopf). Die Übersetzung erscheint dann unter jeder Zeile.";
     pop.querySelector("#lt-pop-hint").textContent = hint;
     pop.querySelector("#lt-pop-diag").textContent = `Version ${VERSION} · gefundene Lyrics-Zeilen: ${inline.lineCount}`;
@@ -552,7 +618,6 @@
 
   function setOpen(open) {
     panel.hidden = !open;
-    store.set("open", String(open));
     state.activeIndex = -1;
     if (open) loadTrack();
   }
@@ -680,6 +745,8 @@
     buildUi();
     setInterval(loadTrack, 1000);
     setInterval(tick, 200);
+    // Zusätzlich zum MutationObserver regelmäßig nach Spotifys Lyrics-Zeilen sehen.
+    setInterval(queueScan, 1500);
     loadTrack();
   }
 
