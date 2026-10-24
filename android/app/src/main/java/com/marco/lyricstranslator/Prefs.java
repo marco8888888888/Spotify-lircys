@@ -57,12 +57,22 @@ final class Prefs {
         sp(c).edit().putBoolean("enabled", v).apply();
     }
 
-    static int overlayY(Context c) {
-        return sp(c).getInt("overlayY", 200);
+    /** Übersetzung direkt unter Spotifys eigenen Lyrics-Zeilen (braucht die Bedienungshilfe). */
+    static boolean inline(Context c) {
+        return sp(c).getBoolean("inline", true);
     }
 
-    static void setOverlayY(Context c, int y) {
-        sp(c).edit().putInt("overlayY", y).apply();
+    static void setInline(Context c, boolean v) {
+        sp(c).edit().putBoolean("inline", v).apply();
+    }
+
+    /** Abstand des Lyrics-Fensters vom unteren Bildschirmrand in Pixeln. */
+    static int overlayBottom(Context c, int def) {
+        return sp(c).getInt("overlayBottom", def);
+    }
+
+    static void setOverlayBottom(Context c, int y) {
+        sp(c).edit().putInt("overlayBottom", y).apply();
     }
 
     static String langName(String code) {
