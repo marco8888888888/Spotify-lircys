@@ -263,7 +263,7 @@
   // Spotify zeigt seine Lyrics als einzelne Zeilen-Elemente. Wir übersetzen genau den Text, den Spotify anzeigt,
   // und hängen die Übersetzung in jede Zeile ein – so übernimmt sie Spotifys Schrift, Farbe und Hervorhebung.
 
-  const VERSION = "5";
+  const VERSION = "6";
   const LINE_SELECTOR = '[data-testid="fullscreen-lyric"], [data-testid="lyrics-line"], .lyrics-lyricsContent-lyric';
 
   // Spotify benennt seine Elemente gelegentlich um. Wenn die bekannten Namen nichts finden, nehmen wir jedes
@@ -272,6 +272,7 @@
   // Spotifys CSS bleibt aber gleich: Zeile = ".X { color: var(--lyrics-color-inactive) }", aktuelle Zeile =
   // ".X.Y { color: var(--lyrics-color-active) }". Daraus lesen wir den Namen der Zeilen-Klasse zur Laufzeit ab.
   let lineClass = null;
+  let activeLineClass = null; // zusätzliche Klasse, die Spotify der gerade gesungenen Zeile gibt
   let lineClassCheckedAt = 0;
   function detectLineClass() {
     // Stylesheets laden teils später nach – bis die Klasse gefunden ist, höchstens alle 1,5 s neu suchen.
@@ -290,7 +291,7 @@
         if (!sel || !color || !color.includes("--lyrics-color-")) continue;
         let m;
         if (color.includes("--lyrics-color-inactive") && (m = /^\.([\w-]+)$/.exec(sel))) inactive.add(m[1]);
-        if (color.includes("--lyrics-color-active") && (m = /^\.([\w-]+)\.[\w-]+$/.exec(sel))) activeCompound.push(m[1]);
+        if (color.includes("--lyrics-color-active") && (m = /^\.([\w-]+)\.([\w-]+)$/.exec(sel))) activeCompound.push([m[1], m[2]]);
       }
     };
     for (const sheet of document.styleSheets) {
@@ -300,7 +301,8 @@
         // fremde Stylesheets lassen sich nicht lesen – überspringen
       }
     }
-    lineClass = activeCompound.find((c) => inactive.has(c)) || lineClass;
+    const hit = activeCompound.find(([c]) => inactive.has(c));
+    if (hit) [lineClass, activeLineClass] = hit;
     return lineClass;
   }
 
@@ -339,6 +341,8 @@
   }
 
   function clearInline() {
+    if (karaoke.el) resetKaraoke(karaoke.el);
+    karaoke.el = null;
     document.querySelectorAll(".lt-inline").forEach((n) => n.remove());
     document.querySelectorAll(".lt-only").forEach((n) => n.classList.remove("lt-only"));
   }
@@ -352,12 +356,13 @@
     }
     const lang = state.targetLang;
     const missing = new Set();
+    let active = null;
     for (const el of els) {
       const text = ownText(el);
       let node = el.querySelector(":scope > .lt-inline");
       const trans = text ? inline.cache.get(lang + "\u0000" + text) : "";
       if (trans === undefined) missing.add(text);
-      if (!trans) {
+      if (trans === "") {
         if (node) node.remove();
         el.classList.remove("lt-only");
         continue;
@@ -367,12 +372,120 @@
         node.className = "lt-inline";
         el.appendChild(node);
       }
-      if (node.textContent !== trans) node.textContent = trans;
+      if (trans === undefined) {
+        // Platzhalter in Zeilenhöhe, damit die Zeile nicht springt, wenn die Übersetzung ankommt.
+        if (!node.classList.contains("lt-pending")) {
+          node.classList.add("lt-pending");
+          node.textContent = "\u00a0";
+        }
+        continue;
+      }
+      node.classList.remove("lt-pending");
+      if (node.dataset.text !== trans) {
+        node.dataset.text = trans;
+        node.textContent = trans;
+        delete node.dataset.karaoke;
+      }
       const only = state.mode === "translation";
       if (only && !el.classList.contains("lt-only")) el.style.setProperty("--lt-fs", getComputedStyle(el).fontSize);
       el.classList.toggle("lt-only", only);
+      if (activeLineClass && el.classList.contains(activeLineClass)) active = el;
     }
+    updateKaraoke(active);
     if (missing.size) translateMissing([...missing], lang);
+  }
+
+  // ---------- Buchstabe für Buchstabe ----------
+  // Die gerade gesungene Zeile füllt sich von links nach rechts, die Übersetzung darunter Buchstabe für Buchstabe –
+  // so lange, wie die Zeile laut LRCLIB-Zeitstempeln dauert.
+
+  const karaoke = { on: store.get("karaoke", "true") === "true", el: null, timings: null, timingsKey: null };
+
+  async function loadTimings() {
+    const track = currentTrack();
+    const key = track ? `${track.artist}|${track.title}` : null;
+    if (key === karaoke.timingsKey) return;
+    karaoke.timingsKey = key;
+    karaoke.timings = null;
+    if (!track) return;
+    const found = await findLyrics(track).catch(() => null);
+    if (karaoke.timingsKey === key && found && found.synced) karaoke.timings = found.lines;
+  }
+
+  /** Restzeit der aktuellen Zeile in ms (aus den Zeitstempeln), sonst eine Schätzung nach Textlänge. */
+  function remainingMs(text) {
+    const lines = karaoke.timings;
+    if (lines && lines.length) {
+      const pos = currentPositionMs();
+      let i = -1;
+      for (let j = 0; j < lines.length; j++) {
+        if (lines[j].time <= pos + 300) i = j;
+        else break;
+      }
+      const next = lines[i + 1];
+      if (i >= 0 && next) return Math.min(10000, Math.max(500, next.time - pos));
+    }
+    return Math.min(6000, Math.max(1200, text.length * 70));
+  }
+
+  function resetKaraoke(el) {
+    el.classList.remove("lt-karaoke");
+    el.style.removeProperty("--lt-dur");
+    el.style.removeProperty("--lt-w");
+    el.style.removeProperty("--lt-x");
+    const node = el.querySelector(":scope > .lt-inline");
+    if (node && node.dataset.karaoke) {
+      node.textContent = node.dataset.text || node.textContent;
+      delete node.dataset.karaoke;
+    }
+  }
+
+  function updateKaraoke(active) {
+    if (karaoke.el && karaoke.el !== active) {
+      resetKaraoke(karaoke.el);
+      karaoke.el = null;
+    }
+    if (!karaoke.on || !active || karaoke.el === active) return;
+    karaoke.el = active;
+    const text = ownText(active);
+    const dur = remainingMs(text);
+    // Original: Farbe läuft von links nach rechts über den Text (ohne Spotifys Text anzufassen). Dafür die echte
+    // Textbreite messen – die Zeile selbst ist meist breiter als ihr Text.
+    const range = document.createRange();
+    let left = Infinity, right = -Infinity;
+    for (const n of active.childNodes) {
+      if (n.nodeType === 1 && n.classList.contains("lt-inline")) continue;
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) {
+        left = Math.min(left, r.left);
+        right = Math.max(right, r.right);
+      }
+    }
+    const box = active.getBoundingClientRect();
+    const w = right > left ? right - left : box.width;
+    const x = right > left ? left - box.left - active.clientLeft : 0;
+    active.style.setProperty("--lt-w", Math.ceil(w) + "px");
+    active.style.setProperty("--lt-x", Math.floor(x) + "px");
+    active.style.setProperty("--lt-dur", dur + "ms");
+    active.classList.remove("lt-karaoke");
+    void active.offsetWidth; // Animation neu starten
+    active.classList.add("lt-karaoke");
+    // Übersetzung: jeder Buchstabe bekommt seinen eigenen Einsatz.
+    const node = active.querySelector(":scope > .lt-inline:not(.lt-pending)");
+    if (!node || !node.dataset.text) return;
+    const chars = [...node.dataset.text];
+    const step = dur / Math.max(1, chars.length);
+    const frag = document.createDocumentFragment();
+    chars.forEach((c, i) => {
+      const span = document.createElement("span");
+      span.className = "lt-ch";
+      span.textContent = c;
+      span.style.animationDelay = Math.round(i * step) + "ms";
+      frag.appendChild(span);
+    });
+    node.textContent = "";
+    node.appendChild(frag);
+    node.dataset.karaoke = "1";
   }
 
   async function translateMissing(texts, lang) {
@@ -399,14 +512,14 @@
     scanInline();
   }
 
-  let scanTimer = null;
+  let scanQueued = false;
   function queueScan() {
-    if (scanTimer) return;
-    scanTimer = setTimeout(() => {
-      scanTimer = null;
-      if (toggleBtn) placeToggle();
+    if (scanQueued) return;
+    scanQueued = true;
+    requestAnimationFrame(() => {
+      scanQueued = false;
       scanInline();
-    }, 200);
+    });
   }
 
   const ICON = `<svg height="16" width="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>`;
@@ -439,7 +552,19 @@
 
   /* Übersetzung in Spotifys eigenen Lyrics-Zeilen: erbt Farbe und Hervorhebung der Zeile */
   .lt-inline{display:block;font-size:.62em;font-weight:600;line-height:1.3;margin-top:.2em;opacity:.85;color:inherit;letter-spacing:0;pointer-events:none}
+  .lt-inline.lt-pending{visibility:hidden}
   .lt-only{font-size:0!important}
+
+  /* Buchstabe für Buchstabe: Original füllt sich von links, Übersetzung Buchstabe für Buchstabe */
+  .lt-karaoke{background-image:linear-gradient(90deg,var(--lyrics-color-active,#fff) 0 50%,var(--lyrics-color-inactive,rgba(255,255,255,.45)) 50% 100%);
+    background-repeat:no-repeat;background-size:calc(var(--lt-w,100%) * 2) 100%;
+    background-position:calc(var(--lt-x,0px) - var(--lt-w,100%)) 0;-webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;animation:lt-fill var(--lt-dur,3s) linear forwards}
+  .lt-karaoke>.lt-inline{-webkit-text-fill-color:currentColor;color:var(--lyrics-color-inactive,rgba(255,255,255,.6))}
+  .lt-ch{animation:lt-letter .18s ease-out both;animation-delay:0ms}
+  .lt-karaoke .lt-ch{-webkit-text-fill-color:currentColor}
+  @keyframes lt-fill{to{background-position:var(--lt-x,0px) 0}}
+  @keyframes lt-letter{from{color:var(--lyrics-color-inactive,rgba(255,255,255,.45));opacity:.55}to{color:var(--lyrics-color-active,#fff);opacity:1}}
   .lt-only>:not(.lt-inline){display:none!important}
   .lt-only>.lt-inline{font-size:var(--lt-fs,1em)!important;font-weight:inherit;opacity:1;margin:0;line-height:inherit}
 
@@ -509,6 +634,7 @@
     pop.innerHTML = `
       <h3>${ICON}Lyrics übersetzen</h3>
       <div class="lt-row">In Spotifys Lyrics anzeigen<input type="checkbox" class="lt-switch" id="lt-inline-on"></div>
+      <div class="lt-row">Buchstabe für Buchstabe<input type="checkbox" class="lt-switch" id="lt-karaoke-on"></div>
       <label>Übersetzen in<select id="lt-pop-lang"></select></label>
       <label>Anzeige
         <select id="lt-pop-mode">
@@ -552,6 +678,15 @@
     const inlineSwitch = pop.querySelector("#lt-inline-on");
     inlineSwitch.checked = inline.on;
     inlineSwitch.addEventListener("change", () => setInline(inlineSwitch.checked));
+    const karaokeSwitch = pop.querySelector("#lt-karaoke-on");
+    karaokeSwitch.checked = karaoke.on;
+    karaokeSwitch.addEventListener("change", () => {
+      karaoke.on = karaokeSwitch.checked;
+      store.set("karaoke", String(karaoke.on));
+      if (karaoke.el) resetKaraoke(karaoke.el);
+      karaoke.el = null;
+      scanInline();
+    });
     pop.querySelector("#lt-pop-panel").addEventListener("click", () => {
       pop.hidden = true;
       setOpen(true);
@@ -578,7 +713,13 @@
     // Spotify baut seine Leiste beim Start (und manchmal danach) neu – Knopf bei Bedarf wieder einsetzen.
     setInterval(placeToggle, 1500);
 
-    new MutationObserver(queueScan).observe(document.body, { childList: true, subtree: true, characterData: true });
+    new MutationObserver(queueScan).observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
   }
 
   function setInline(on) {
@@ -759,8 +900,12 @@
     showStartToast();
     setInterval(loadTrack, 1000);
     setInterval(tick, 200);
-    // Zusätzlich zum MutationObserver regelmäßig nach Spotifys Lyrics-Zeilen sehen.
-    setInterval(queueScan, 1500);
+    // Zusätzlich zum MutationObserver regelmäßig nach Spotifys Lyrics-Zeilen und dem Knopf sehen.
+    setInterval(() => {
+      placeToggle();
+      queueScan();
+      if (inline.on && karaoke.on) loadTimings();
+    }, 1500);
     loadTrack();
   }
 
