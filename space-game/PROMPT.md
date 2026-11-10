@@ -198,3 +198,4 @@ Status: ⬜ offen · 🟨 in Arbeit · ✅ fertig · ⛔ blockiert
 
 ## 9. Changelog
 - 2026-11-10: Master-Prompt erstellt (Hauptgehirn).
+- 2026-11-10: T00 Scaffold (Worker): Vite+TS strict+Three+Rapier+Vitest+Playwright, `core/types.ts`, typisierter EventBus, GameLoop (50 Hz fix + interpolierter Render), SceneManager mit Menü/Hangar/Flug. Screenshot `tests/screenshots/T00.png`.

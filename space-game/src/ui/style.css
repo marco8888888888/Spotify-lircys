@@ -1,0 +1,38 @@
+:root {
+  --bg: #05070d;
+  --fg: #e8ecf5;
+  --accent: #ff8a3d;
+  --accent-2: #6fd3ff;
+  --panel: rgba(12, 18, 32, 0.72);
+  --font: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); overflow: hidden; }
+#app { position: relative; width: 100%; height: 100%; }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#ui { position: absolute; inset: 0; pointer-events: none; }
+#ui > * { pointer-events: auto; }
+
+.menu { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5rem; pointer-events: none; }
+.menu > * { pointer-events: auto; }
+.menu h1 {
+  margin: 0; font-size: clamp(2.6rem, 9vw, 6rem); font-weight: 800; letter-spacing: 0.35em; padding-left: 0.35em;
+  background: linear-gradient(180deg, #fff 0%, #ffd2ae 55%, var(--accent) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 0 40px rgba(255, 138, 61, 0.25);
+}
+.menu .subtitle { margin: -1.8rem 0 0; opacity: 0.65; letter-spacing: 0.3em; font-size: 0.85rem; text-transform: uppercase; }
+.menu .buttons { display: flex; gap: 1.25rem; flex-wrap: wrap; justify-content: center; }
+
+.btn {
+  font: inherit; font-size: 1.1rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--fg); background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.85rem 2.4rem; border-radius: 6px; cursor: pointer; backdrop-filter: blur(6px);
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.btn:hover, .btn:focus-visible { border-color: var(--accent); background: rgba(255, 138, 61, 0.15); outline: none; transform: translateY(-1px); }
+
+.hud-bar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: linear-gradient(180deg, rgba(0,0,0,0.55), transparent); }
+.hud-bar .title { font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; }
+.hud-bar .btn { font-size: 0.8rem; padding: 0.45rem 1rem; }
+.hud-readout { position: absolute; bottom: 1rem; left: 1rem; font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; background: var(--panel); padding: 0.5rem 0.75rem; border-radius: 4px; }
