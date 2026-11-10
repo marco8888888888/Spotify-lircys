@@ -1,6 +1,6 @@
 # ORBITWERK – Master-Prompt (Hauptgehirn)
 
-> Arbeitstitel: **Orbitwerk** – ein eigenes Raketenbau- und Raumfahrt-Simulationsspiel.
+> Arbeitstitel: **Orbitwerk** – ein eigenes Raketenbau- und Raumfahrt-Simulationsspiel in **Unreal Engine 5**.
 > Inspiriert vom Genre (Raketen aus Teilen bauen, starten, Orbits fliegen, landen),
 > aber **komplett eigenständig**: eigene Welt, eigene Crew, eigene Teile, eigener Look.
 > Keine Namen, Figuren, Planeten, Grafiken, Sounds oder UI-Elemente aus bestehenden Spielen übernehmen.
@@ -12,14 +12,19 @@
 ### 1.1 Hauptgehirn (Orchestrator)
 Das Hauptgehirn ist die Session, die diese Datei pflegt. Es
 - hält die **Vision** und die **Architektur** (diese Datei ist die Wahrheit),
-- zerlegt Arbeit in **Tasks** (Abschnitt 6) mit klaren Schnittstellen,
-- startet für jeden Task eine **Worker-Session** (eigener Chat) mit dem Worker-Prompt (Abschnitt 5),
-- prüft die Ergebnisse (Build, Tests, Screenshot), merged und aktualisiert den Task-Status,
-- schreibt selbst **keinen großen Feature-Code**, nur Integration, Fixes und Schnittstellen.
+- zerlegt Arbeit in **Tasks** (Abschnitt 7) mit klaren Schnittstellen,
+- startet für jeden Task eine **Worker-Session** (eigener Chat) mit dem Worker-Prompt (Abschnitt 6),
+- prüft Ergebnisse (Code-Review, OrbitCore-Tests), merged, aktualisiert das Task-Board,
+- sammelt Compile-Fehler / Screenshots vom **Tester (Marco)** und verteilt Fixes.
 
 ### 1.2 Worker
-Ein Worker bekommt genau **einen** Task, arbeitet auf **einem eigenen Branch**, hält sich an
-die Schnittstellen in Abschnitt 4 und liefert: Code + Tests + kurzen Bericht.
+Ein Worker bekommt genau **einen** Task, arbeitet auf **einem eigenen Branch** (`orbitwerk/<task-id>-…`),
+hält sich an die Schnittstellen in Abschnitt 5 und liefert: Code + Tests + Bericht + ggf. Editor-Anleitung.
+
+### 1.3 Tester (Mensch)
+Die Cloud-Chats haben **keine GPU und keine Unreal-Installation**. Marco kompiliert und testet
+lokal (Laptop, oder per **Parsec** auf dem starken PC) und schickt Compile-Log + Screenshots zurück.
+→ Deshalb muss jeder Task **genaue Test-Schritte** im Bericht haben.
 
 ---
 
@@ -27,174 +32,196 @@ die Schnittstellen in Abschnitt 4 und liefert: Code + Tests + kurzen Bericht.
 
 | Bereich | Ziel |
 |---|---|
-| **Grafik** | PBR-Materialien, atmosphärische Streuung (Himmel färbt sich mit Höhe), volumetrische Triebwerksflammen, Wolkenschicht, Sternenhimmel, Bloom/Tonemapping, Reentry-Plasmaeffekt, Planeten-LOD (Quadtree-Kugel) |
-| **Physik** | Stabile Starrkörper-Physik der Raketen, korrekte Orbitalmechanik (Patched Conics + Kepler-Propagation „on rails“), Zeitraffer ohne Explosionen, aerodynamischer Widerstand & Auftrieb, Hitze |
-| **Bauen** | Snap-Knoten, Symmetrie (2/3/4/6/8x), Undo/Redo, Stufen-Editor mit Δv-Anzeige pro Stufe (Vakuum + Meereshöhe), TWR-Anzeige |
-| **Neue Teile** | Mehr als Standard: Aerospikes, Ionenantriebe, Nuklear-thermisch, Grid-Fins, ausfahrbare Hitzeschilde, Wiederverwendbare Booster mit Rücklandung, Docking-Ports, Rover-Räder, Solarsegel, Treibstofftransfer |
-| **Komfort** | Manöverknoten mit Δv-Planer, Transferfenster-Rechner, Autopilot-Basics (Prograde/Retrograde/Normal/Radial halten), Quicksave |
-| **Welt** | Eigenes Sternsystem „Helion“: Heimatplanet **Terran-Vey**, Mond **Pell**, roter Wüstenplanet **Okkar**, Gasriese **Thalassa** mit Monden. Eigene Crew-Spezies: **die Nauten** (eigenes Design, keine grünen Männchen) |
+| **Grafik** | Lumen GI, Nanite-Terrain/Teile, **Sky Atmosphere** (echte Streuung, Himmel wird mit Höhe schwarz), **Volumetric Clouds**, Niagara-Triebwerksflammen (höhenabhängig), Reentry-Plasma, Hitzeflimmern, Sternenhimmel, Planeten mit LOD |
+| **Grafik-Einstellungen** | Presets **Laptop / Niedrig / Mittel / Hoch / Episch / Kino**; einzeln: Auflösungsskala, Upscaler (TSR, optional DLSS/FSR), Lumen an/aus (Fallback: SSGI), Wolkenqualität, Schatten, Nanite-Detail, Partikeldichte, FPS-Limit, VSync. Auto-Erkennung beim ersten Start (Benchmark). Muss auf schwachem Laptop spielbar laufen. |
+| **Physik** | Stabile Raketen-Physik (Chaos), korrekte Orbitalmechanik (Patched Conics, Kepler „on rails“), Zeitraffer ohne Explosionen, Aero-Drag/Lift, Hitze |
+| **Bauen** | Snap-Knoten, Symmetrie (2/3/4/6/8x), Undo/Redo, Stufen-Editor mit Δv (Vakuum + Meereshöhe) und TWR |
+| **Neue Teile** | Aerospikes, Ionen, Nuklear-thermisch, Grid-Fins, ausfahrbare Hitzeschilde, Booster-Rücklandung, Docking-Ports, Rover, Solarsegel, Treibstofftransfer |
+| **Komfort** | Manöverknoten mit Δv-Planer, Transferfenster-Rechner, Autopilot (Prograde/Retro/Normal/Radial halten), Quicksave |
+| **Welt** | Sternsystem **Helion**: Heimatplanet **Terran-Vey**, Mond **Pell**, Wüstenplanet **Okkar**, Gasriese **Thalassa** mit Monden. Crew-Spezies: **die Nauten** (eigenes Design) |
 
-**Leitprinzip:** Erst ein spielbarer Kern (bauen → starten → Orbit), dann schöner, dann mehr.
+**Leitprinzip:** Erst spielbarer Kern (bauen → starten → Orbit), dann schöner, dann mehr.
 
 ---
 
 ## 3. Technik-Stack (fest)
 
-- **Sprache:** TypeScript (strict)
-- **Rendering:** Three.js (WebGL2, später optional WebGPU-Renderer)
-- **Physik (Starrkörper):** Rapier (`@dimforge/rapier3d-compat`)
-- **Orbitalmechanik:** eigene Implementierung in `src/orbit/` (Double-Precision, kein Rapier)
-- **Build:** Vite · **Tests:** Vitest · **E2E/Screenshot:** Playwright
-- **UI:** Plain DOM + CSS (kein React im Spiel-HUD), kleine eigene Komponenten
-- **Läuft im Browser** → jede Session kann per Playwright starten und Screenshots machen.
+- **Engine:** Unreal Engine **5.6 oder neuer** (Large World Coordinates = doppelte Präzision)
+- **Sprache:** **C++ zuerst**. Blueprints nur dünn für UI-Layout/Tuning.
+- **Physik:** Chaos für Starrkörper im Nahbereich; **OrbitCore** (eigene C++-Bibliothek) für Orbits.
+- **UI:** UMG + CommonUI, Logik in C++.
+- **Effekte:** Niagara, Materialien mit Material-Parametern aus C++.
+- **Daten:** Teile & Himmelskörper als **JSON/DataAssets** (Text, gut für Chats).
+- **Assets ohne Editor erzeugen:** Wo möglich prozedural (C++ `UDynamicMeshComponent`/GeometryScript) oder per **Unreal-Python-Editor-Skript** (`space-game/Scripts/*.py`), das Marco einmal im Editor ausführt. So bleibt fast alles Text.
+- **Git:** Binärdateien (`.uasset`, `.umap`, Texturen) über **Git LFS**.
 
 ### Ordnerstruktur
 ```
 space-game/
-  PROMPT.md            ← diese Datei (Wahrheit)
-  package.json
-  index.html
-  src/
-    main.ts            ← Bootstrapping, Szenenwechsel
-    core/              ← Game-Loop, EventBus, Zeit/Zeitraffer, Input, Save/Load
-    orbit/             ← Kepler, Patched Conics, SOI, Manöverknoten (reine Mathe, 100% testbar)
-    physics/           ← Rapier-Wrapper, Vessel-Physik, Aero, Hitze
-    world/             ← Sternsystem-Daten, Planeten-Mesh/LOD, Atmosphäre, Himmel
-    parts/             ← Teile-Definitionen (JSON) + Teile-Module (Engine, Tank, Decoupler …)
-    vessel/            ← Vessel-Graph (Teilebaum), Staging, Δv-Rechner
-    editor/            ← Baueditor (Hangar)
-    flight/            ← Flugszene, Kamera, Map-View
-    render/            ← Post-Processing, Shader, Effekte (Flammen, Reentry)
-    ui/                ← HUD, Navball, Menüs
-  assets/              ← eigene, prozedural erzeugte oder selbst erstellte Assets
-  tests/               ← Vitest + Playwright
+  PROMPT.md                 ← diese Datei (Wahrheit)
+  Orbitwerk.uproject
+  Config/                   ← DefaultEngine.ini, DefaultScalability.ini (Grafik-Presets)
+  Source/
+    Orbitwerk/              ← Haupt-Spielmodul (GameMode, Szenen, Input)
+    OrbitwerkCore/          ← UE-Modul: Vessel, Parts, Staging, Physik-Brücke
+    OrbitwerkRender/        ← UE-Modul: Planeten-LOD, Atmosphäre, Effekte, Grafik-Settings
+    OrbitwerkUI/            ← UE-Modul: HUD, Navball, Editor-UI, Settings-Menü
+  ThirdParty/OrbitCore/     ← REINES C++17, KEINE UE-Abhängigkeit, CMake + Tests (läuft in Cloud!)
+    include/ src/ tests/ CMakeLists.txt
+  Data/Parts/*.json  Data/Bodies/*.json
+  Scripts/                  ← Unreal-Python-Skripte zum Erzeugen von Assets/Levels
+  Content/                  ← (LFS) Maps, Materialien, Niagara
+  docs/                     ← Test-Anleitungen, Editor-Schritte
 ```
+
+**Wichtig:** Alles, was ohne Engine testbar ist (Orbitmechanik, Δv, Teile-Parsing, Staging-Logik),
+gehört in `ThirdParty/OrbitCore` und wird in der Cloud mit `cmake && ctest` getestet.
 
 ---
 
-## 4. Schnittstellen-Verträge (nicht ohne Hauptgehirn ändern)
+## 4. Grafik-Settings-System (Pflicht für alle Render-Tasks)
 
-```ts
-// src/core/types.ts
-export type Vec3d = { x: number; y: number; z: number };         // double precision, Meter
-
-export interface CelestialBody {
-  id: string; name: string;
-  mu: number;            // Gravitationsparameter m^3/s^2
-  radius: number;        // m
-  soiRadius: number;     // m (Infinity für den Stern)
-  parentId: string | null;
-  orbit: OrbitalElements | null;
-  atmosphere?: { height: number; seaLevelPressure: number; scaleHeight: number; color: string };
-  rotationPeriod: number; // s
-}
-
-export interface OrbitalElements {
-  a: number; e: number; i: number; lan: number; argPe: number; meanAnomalyAtEpoch: number; epoch: number;
-}
-
-export interface PartDef {
-  id: string; name: string; category: 'engine'|'tank'|'command'|'structural'|'decoupler'|'aero'|'utility'|'science';
-  mass: number;          // t (trocken)
-  size: '0.625'|'1.25'|'2.5'|'3.75'|'5';
-  nodes: { id: string; pos: [number,number,number]; dir: [number,number,number]; size: string }[];
-  modules: PartModuleDef[];   // z. B. { type:'engine', thrustVac, ispVac, ispSL, propellants }
-  mesh: string;          // Generator-ID oder Asset-Pfad
-}
-
-export interface VesselPartInstance { uid: string; defId: string; parentUid: string | null; attachNode: string; transform: number[]; stage: number; symmetryGroup?: string }
-export interface VesselDesign { name: string; parts: VesselPartInstance[] }
-```
-
-**Events (EventBus):** `stage:activated`, `part:destroyed`, `soi:changed`, `timewarp:changed`, `scene:change`.
-
-**Floating Origin:** Rendering immer relativ zum aktiven Vessel. Weltpositionen in `Vec3d`, Three.js bekommt nur float-sichere relative Koordinaten.
+- Klasse `UOrbitwerkGraphicsSettings : UGameUserSettings` (in `OrbitwerkRender`).
+- Jeder visuelle Effekt **muss** eine Qualitätsstufe 0–4 respektieren (CVar `ow.<effekt>.Quality`)
+  und auf Stufe 0 billig oder aus sein.
+- Preset **„Laptop“**: 50–67 % Auflösung + TSR, Lumen aus, Wolken niedrig, Schatten niedrig, 30–60 FPS Ziel.
+- Erststart: `RunHardwareBenchmark()` → Preset vorschlagen.
 
 ---
 
-## 5. Worker-Prompt (Vorlage für jeden neuen Chat)
+## 5. Schnittstellen-Verträge (nicht ohne Hauptgehirn ändern)
+
+```cpp
+// ThirdParty/OrbitCore/include/orbitcore/Types.h   (namespace oc, alles double, SI-Einheiten)
+struct Vec3d { double x, y, z; };
+
+struct OrbitalElements { double a, e, i, lan, argPe, meanAnomalyAtEpoch, epoch; };
+
+struct Atmosphere { double height, seaLevelPressure, scaleHeight; };
+
+struct CelestialBody {
+  std::string id, name, parentId;   // parentId leer = Stern
+  double mu, radius, soiRadius, rotationPeriod;
+  std::optional<OrbitalElements> orbit;
+  std::optional<Atmosphere> atmosphere;
+};
+
+struct StateVector { Vec3d r, v; double t; std::string bodyId; };
+
+// Kern-API
+OrbitalElements ElementsFromState(const StateVector&, double mu);
+StateVector     StateAt(const OrbitalElements&, double mu, double t);
+std::vector<struct PatchedSegment> PredictPatched(const StateVector&, const class System&, double horizon);
+```
+
+```cpp
+// Teile (Data/Parts/*.json → oc::PartDef)
+struct PartNode { std::string id; Vec3d pos, dir; std::string size; };
+struct PartDef {
+  std::string id, name, category;   // engine|tank|command|structural|decoupler|aero|utility|science
+  double mass;                      // t (trocken)
+  std::string size;                 // 0.625|1.25|2.5|3.75|5
+  std::vector<PartNode> nodes;
+  nlohmann::json modules;           // z. B. {"engine":{"thrustVac":..,"ispVac":..,"ispSL":..}}
+  std::string mesh;                 // Generator-ID oder Asset-Pfad
+};
+struct VesselPart { std::string uid, defId, parentUid, attachNode; int stage; std::string symmetryGroup; };
+struct VesselDesign { std::string name; std::vector<VesselPart> parts; };
+```
+
+**Floating Origin:** UE5 Large World Coordinates + Origin-Rebasing aufs aktive Vessel.
+Orbit-Positionen bleiben in `oc::Vec3d` (Planeten-zentriert), Umrechnung nur in `OrbitwerkCore`.
+
+---
+
+## 6. Worker-Prompt (Vorlage für jeden neuen Chat)
 
 ```
-Du bist Worker im Projekt ORBITWERK (eigenes Raketenbau-/Raumfahrtspiel, Ordner space-game/).
+Du bist Worker im Projekt ORBITWERK (eigenes Raketenbau-/Raumfahrtspiel in Unreal Engine 5, Ordner space-game/).
 Lies ZUERST space-game/PROMPT.md komplett – das ist die verbindliche Architektur.
 
 Dein Task: <TASK-ID> – <Titel>
-Ziel: <Beschreibung aus Abschnitt 6>
-Akzeptanzkriterien: <aus Abschnitt 6>
+Ziel: <Beschreibung aus Abschnitt 7>
+Akzeptanzkriterien: <aus Abschnitt 7>
+
+Wichtig zur Umgebung: Du hast KEINE Unreal Engine und KEINE GPU. Schreibe UE-C++ sehr sorgfältig
+(korrekte Includes, UCLASS/GENERATED_BODY, Build.cs-Abhängigkeiten), da du nicht kompilieren kannst.
+Alles Engine-unabhängige gehört nach ThirdParty/OrbitCore und MUSS mit cmake + ctest grün sein.
 
 Regeln:
-- Arbeite NUR in den Ordnern, die zu deinem Task gehören. Schnittstellen aus Abschnitt 4 nicht ändern;
-  wenn nötig, schreibe den Vorschlag in deinen Bericht.
+- Arbeite NUR in den Ordnern deines Tasks. Schnittstellen aus Abschnitt 5 nicht ändern; Vorschläge in den Bericht.
 - Keine Inhalte aus bestehenden Spielen (Namen, Figuren, Grafiken, Sounds). Alles eigen.
-- Schreibe Vitest-Tests für Logik. Für Visuelles: Playwright-Screenshot unter tests/screenshots/<TASK-ID>.png.
-- `npm run build` und `npm test` müssen grün sein.
-- Committe auf deinen Branch und pushe. Keinen PR öffnen, außer es wird verlangt.
-- Bericht am Ende: Was gebaut, welche Dateien, offene Punkte, Vorschläge für Schnittstellen.
+- Visuelle Features respektieren das Grafik-Settings-System (Abschnitt 4).
+- Assets möglichst prozedural oder als Unreal-Python-Skript in Scripts/, keine handgebauten .uasset.
+- Lege docs/<TASK-ID>-test.md an: genaue Schritte, wie der Tester es im Editor prüft.
+- Committe auf deinen Branch und pushe. Keinen PR öffnen.
+- Bericht am Ende: Was gebaut, welche Dateien, Test-Schritte, offene Punkte.
 ```
 
 ---
 
-## 6. Task-Board
+## 7. Task-Board
 
-Status: ⬜ offen · 🟨 in Arbeit · ✅ fertig · ⛔ blockiert
+Status: ⬜ offen · 🟨 in Arbeit · 🧪 wartet auf Test durch Marco · ✅ fertig · ⛔ blockiert
 
-### Phase 0 – Fundament (seriell, zuerst)
+### Phase 0 – Fundament (parallel)
 | ID | Task | Akzeptanz | Status |
 |---|---|---|---|
-| T00 | **Scaffold**: Vite+TS+Three+Rapier+Vitest+Playwright, Ordnerstruktur, `core/types.ts`, EventBus, Game-Loop mit fixem Physik-Tick (50 Hz) + Render-Loop, leere Szenen Hauptmenü/Editor/Flug | `npm run dev` zeigt Menü; Build+Test grün; Screenshot | ⬜ |
+| T00 | **UE5-Scaffold**: `.uproject`, 4 Module mit Build.cs, GameMode, Szenen (Hauptmenü/Hangar/Flug) per C++, Enhanced Input, `.gitignore` + `.gitattributes` (LFS), `DefaultScalability.ini` mit Laptop-Preset, `UOrbitwerkGraphicsSettings`-Grundgerüst, Python-Skript das leere Maps anlegt | Projekt kompiliert bei Marco, Menü erscheint | 🟨 |
+| T10 | **OrbitCore**: CMake-Lib, Kepler-Gleichung (ell./hyperb.), State↔Elemente, Propagation, SOI-Wechsel, Patched Conics, Ap/Pe/Periode, Tests (doctest) | `ctest` grün, Testfälle für Kreis/Ellipse/Hyperbel/SOI | 🟨 |
 
 ### Phase 1 – Kern (parallel, nach T00)
-| ID | Task | Ordner | Akzeptanz | Status |
-|---|---|---|---|---|
-| T10 | **Orbitalmechanik**: Kepler-Gleichung, State↔Elemente, Propagation, SOI-Wechsel, Patched Conics, Ap/Pe/Periode | `orbit/` | Tests gegen bekannte Werte (Kreis-/Ellipsen-/Hyperbelbahn, SOI-Übergang) | ⬜ |
-| T11 | **Sternsystem Helion**: Daten aller Körper, Planeten-Mesh als Quadtree-Kugel mit Noise-Terrain + LOD | `world/` | Heimatplanet aus Orbit und am Boden sichtbar, 60 FPS | ⬜ |
-| T12 | **Teile-System v1**: PartDef-JSON, 15 Basisteile (Kapsel, 3 Tanks, 3 Triebwerke, Decoupler, Nasenkonus, Fallschirm, Finnen, Landebeine, Batterie, Solarpanel, Strebe), prozedurale Meshes | `parts/` | Alle Teile laden & rendern im Teile-Showroom | ⬜ |
-| T13 | **Vessel + Staging + Δv**: Teilebaum, Masse/Schwerpunkt, Stufen, Δv & TWR pro Stufe | `vessel/` | Tests: Δv-Berechnung einer 2-Stufen-Rakete korrekt | ⬜ |
-| T14 | **HUD-Grundgerüst**: Navball, Höhe, Geschwindigkeit, Schub-Regler, Stufenliste, Zeitraffer | `ui/` | Screenshot, Tastatursteuerung (WASDQE, Shift/Ctrl, Leertaste) | ⬜ |
-
-### Phase 2 – Spielbar (nach Phase 1)
 | ID | Task | Akzeptanz | Status |
 |---|---|---|---|
-| T20 | **Editor/Hangar**: Teile-Palette, Snap an Knoten, Symmetrie, Undo/Redo, Speichern/Laden | Rakete bauen und speichern | ⬜ |
-| T21 | **Flugphysik**: Vessel als Rapier-Körper(gelenke), Schub, Gravitation, Aero-Drag, Übergang Physik ↔ „on rails“ bei Zeitraffer | Start bis Orbit möglich | ⬜ |
-| T22 | **Map-View**: Bahnen zeichnen, Ap/Pe-Marker, SOI-Übergänge, Manöverknoten mit Gizmo | Orbit-Planung zum Mond | ⬜ |
-| T23 | **Kamera & Floating Origin** | Kein Zittern bei 10.000 km Entfernung | ⬜ |
+| T11 | **Sternsystem Helion**: `Data/Bodies/*.json`, Planeten-Quadtree-LOD (Dynamic Mesh, Noise-Terrain), Sky Atmosphere pro Planet | Heimatplanet aus Orbit + Boden sichtbar | ⬜ |
+| T12 | **Teile v1**: JSON-Parser in OrbitCore, 15 Basisteile, prozedurale Meshes (Kapsel, Tanks, Triebwerke …) | Teile-Showroom-Map zeigt alle Teile | ⬜ |
+| T13 | **Vessel + Staging + Δv** (Logik in OrbitCore, Actor in OrbitwerkCore) | ctest: Δv 2-Stufen-Rakete korrekt | ⬜ |
+| T14 | **HUD v1**: Navball, Höhe, Geschwindigkeit, Schub, Stufen, Zeitraffer, **Grafik-Settings-Menü** | Steuerung WASDQE, Shift/Ctrl, Leertaste | ⬜ |
 
-### Phase 3 – Schöner (parallel)
+### Phase 2 – Spielbar
 | ID | Task | Status |
 |---|---|---|
-| T30 | Atmosphärische Streuung + Himmel-Shader + Sterne | ⬜ |
-| T31 | Triebwerksflammen (höhenabhängig: eng im Vakuum, breit am Boden), Rauch, Bloom | ⬜ |
-| T32 | Reentry-Plasma + Hitzesystem | ⬜ |
-| T33 | Wolken, Ozean-Shader, Terrain-Texturen | ⬜ |
-| T34 | Explosionen & Trümmer | ⬜ |
+| T20 | Hangar-Editor: Palette, Snap, Symmetrie, Undo/Redo, Speichern/Laden | ⬜ |
+| T21 | Flugphysik: Chaos-Körper + Constraints, Schub, Gravitation aus OrbitCore, Aero, Physik ↔ on-rails | ⬜ |
+| T22 | Map-View: Bahnen, Ap/Pe, SOI, Manöverknoten mit Gizmo | ⬜ |
+| T23 | Kamera & Origin-Rebasing, kein Zittern auf 10.000 km | ⬜ |
 
-### Phase 4 – Mehr (parallel)
+### Phase 3 – Krasse Grafik
+| ID | Task | Status |
+|---|---|---|
+| T30 | Atmosphäre/Himmel-Tuning, Sternenhimmel, Planeten-Shading aus dem All | ⬜ |
+| T31 | Niagara-Triebwerksflammen (Vakuum eng / Boden breit), Rauch, Startrampen-Dampf | ⬜ |
+| T32 | Reentry-Plasma + Hitze-System + Hitzeflimmern | ⬜ |
+| T33 | Volumetrische Wolken, Ozean, Terrain-Materialien (Nanite) | ⬜ |
+| T34 | Explosionen & Trümmer (Chaos Destruction) | ⬜ |
+| T35 | Performance-Pass: Laptop-Preset ≥ 30 FPS, Benchmark-Autodetect | ⬜ |
+
+### Phase 4 – Mehr
 | ID | Task | Status |
 |---|---|---|
 | T40 | Neue Teile: Aerospike, Ionen, Nuklear, Grid-Fins, Hitzeschild, Docking-Port, Räder | ⬜ |
-| T41 | Booster-Rücklandung (Autopilot „Suicide Burn“ + Grid-Fins) | ⬜ |
+| T41 | Booster-Rücklandung (Autopilot + Grid-Fins) | ⬜ |
 | T42 | Docking & Treibstofftransfer | ⬜ |
 | T43 | Transferfenster-Rechner (Porkchop-Plot) | ⬜ |
 | T44 | Nauten: Crew-Design, EVA | ⬜ |
-| T45 | Sound (prozedural/eigene Samples) | ⬜ |
+| T45 | Sound (MetaSounds) | ⬜ |
 | T46 | Karriere/Forschung/Missionen | ⬜ |
 
 ---
 
-## 7. Ablauf für das Hauptgehirn
+## 8. Ablauf für das Hauptgehirn
 
-1. Phase 0 (T00) als einzelne Worker-Session starten → prüfen → in `ccr-777d9743-kyqiye` mergen.
-2. Phase-1-Tasks **parallel** als je eine Session starten (jeweils Worker-Prompt + Task-Zeile).
-3. Ergebnisse prüfen: Branch auschecken, `npm ci && npm run build && npm test`, Screenshot ansehen.
-4. Mergen, Konflikte selbst lösen, Task-Board hier aktualisieren, Schnittstellen nachziehen.
-5. Nächste Phase. Nie mehr als ~5 Worker gleichzeitig.
+1. T00 + T10 parallel starten.
+2. Ergebnisse reviewen, OrbitCore-Tests selbst laufen lassen, nach `ccr-777d9743-kyqiye` mergen.
+3. Marco kompiliert (Laptop oder Parsec) → schickt Log/Screenshot → Fix-Tasks verteilen.
+4. Phase-1-Tasks parallel starten (max. ~5 Worker gleichzeitig).
+5. Task-Board + Changelog hier aktualisieren.
 
-## 8. Definition of Done (für jeden Task)
-- Build + Tests grün, keine TS-Fehler
-- Schnittstellen eingehalten
-- Screenshot bei visuellen Tasks
-- Kurzer Eintrag im Changelog unten
+## 9. Definition of Done
+- OrbitCore: `ctest` grün · UE-Teil: kompiliert bei Marco ohne Warnungen-Flut
+- Schnittstellen eingehalten, Grafik-Settings respektiert
+- `docs/<TASK-ID>-test.md` vorhanden, Screenshot vom Tester bei visuellen Tasks
 
-## 9. Changelog
-- 2026-11-10: Master-Prompt erstellt (Hauptgehirn).
+## 10. Changelog
+- 2026-11-10: Master-Prompt erstellt (Web-Stack).
+- 2026-11-10: Umstieg auf **Unreal Engine 5** für maximale Grafik; Grafik-Settings mit Laptop-Preset; OrbitCore als engine-freie, cloud-testbare Bibliothek. Web-Scaffold (Branch `orbitwerk/t00-scaffold`) verworfen.
