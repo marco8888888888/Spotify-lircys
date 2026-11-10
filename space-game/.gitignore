@@ -1,0 +1,27 @@
+# --- Unreal Engine: generierte Ordner ---
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# --- IDEs / Projektdateien (werden per "Generate Project Files" erzeugt) ---
+.vs/
+.vscode/
+.idea/
+*.sln
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.code-workspace
+*.xcworkspace
+*.xcodeproj
+
+# --- Automatisch von OrbitwerkCore.Build.cs erzeugte OrbitCore-Wrapper ---
+Source/OrbitwerkCore/Private/OrbitCoreSources/
+
+# --- OrbitCore CMake-Builds (Cloud/Tests) ---
+ThirdParty/OrbitCore/build*/
